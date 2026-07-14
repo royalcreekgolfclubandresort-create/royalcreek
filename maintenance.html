@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="th"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ซ่อมบำรุง · Royal Creek</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#123a2a;--green-2:#1b5e3f;--gold:#c9a24b;--gold-soft:#e6d29a;--cream:#f6f4ee;--card:#fff;--ink:#20261f;--muted:#6b7268;--line:#e2ddcf;--danger:#a3352d;--ok:#1b7a4a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;height:100%}
+  body{font-family:'Sarabun',system-ui,sans-serif;color:var(--ink);background:var(--cream);font-size:15px;line-height:1.45}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}input,select,textarea{font-family:inherit;font-size:inherit}
+  .hidden{display:none!important}
+  .crest{width:38px;height:38px;border-radius:11px;background:#0d2b1f;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--gold);color:var(--gold);font-weight:700;font-size:13px;flex:none}
+  .center{min-height:100%;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(120% 90% at 50% -10%,#16482f,var(--green) 55%,#0d2b1f)}
+  .lcard{width:100%;max-width:420px;background:#fff;border-radius:20px;padding:26px 22px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}.brand h1{margin:0;font-size:18px}.brand p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .fld{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .staff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .sbtn{padding:14px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fbfaf5;text-align:left}.sbtn .nm{font-weight:600}.sbtn .nk{font-size:13px;color:var(--muted)}
+  .pin-dots{display:flex;gap:12px;justify-content:center;margin:8px 0 18px}.pd{width:15px;height:15px;border-radius:50%;border:2px solid var(--line)}.pd.f{background:var(--green-2);border-color:var(--green-2)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pad button{height:56px;border-radius:13px;background:#fbfaf5;border:1.5px solid var(--line);font-size:22px;font-weight:600}
+  .link{display:block;text-align:center;margin-top:14px;color:var(--green-2);font-weight:600;font-size:14px}
+  .msg{margin-top:12px;text-align:center;font-size:14px;min-height:20px;color:var(--danger)}
+  .top{background:var(--green);color:#fff;padding:11px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+  .top h1{margin:0;font-size:16px}.top .sub{font-size:12px;color:var(--gold-soft)}.top .sp{margin-left:auto;display:flex;gap:8px}
+  .top button.t{border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:7px 10px;color:#fff;font-weight:600;font-size:13px}
+  .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:53px;z-index:4}
+  .tabs button{flex:1;padding:13px;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent;font-size:14px}.tabs button.on{color:var(--green-2);border-bottom-color:var(--green-2)}
+  .wrap{max-width:720px;margin:0 auto;padding:14px 14px 40px}
+  .in{width:100%;height:46px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px;background:#fbfaf5;margin-bottom:10px}
+  textarea.in{height:80px;padding:10px 12px;resize:vertical}
+  .in:focus{outline:none;border-color:var(--green-2);background:#fff}
+  .btn{width:100%;height:50px;border-radius:12px;background:var(--green-2);color:#fff;font-weight:700}.btn:disabled{opacity:.5}
+  .mini{border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:13px;font-weight:600;color:var(--green-2)}
+  .seg{display:flex;gap:8px;margin-bottom:12px}.seg button{flex:1;height:44px;border:1.5px solid var(--line);border-radius:10px;background:#fbfaf5;font-weight:600}
+  .seg button.on{border-color:var(--green-2);background:#eef5f0;color:var(--green-2)}
+  .seg button.urg.on{border-color:var(--danger);background:#faece9;color:var(--danger)}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:10px}
+  .chip{padding:7px 13px;border:1.5px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;font-weight:600;white-space:nowrap}
+  .chip.on{border-color:var(--green-2);background:#eef5f0;color:var(--green-2)}
+  .tk{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px;margin-bottom:10px}
+  .tk .h{display:flex;align-items:center;gap:8px}.tk .h b{flex:1;font-size:15px}
+  .tk .meta{font-size:12px;color:var(--muted);margin-top:3px}
+  .tk .dt{font-size:13px;margin-top:6px}
+  .tk img{max-width:120px;border-radius:9px;margin-top:8px;display:block}
+  .tk .acts{display:flex;gap:8px;margin-top:10px}
+  .pill{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600;white-space:nowrap}
+  .pill.open{background:#f6efd9;color:#8a6d1f}.pill.doing{background:#e3ecf7;color:#2b5f9e}
+  .pill.done{background:#e4f0e9;color:var(--ok)}.pill.cancelled{background:#eee;color:#777}
+  .pill.urgent{background:#faece9;color:var(--danger)}
+  .empty{text-align:center;color:var(--muted);padding:34px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:11px;font-size:14px;opacity:0;transition:.25s;z-index:50}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.bellw{position:relative;display:inline-flex;margin-left:8px}.bellb{background:none;border:none;font-size:22px;cursor:pointer;position:relative;padding:4px}.bellbadge{position:absolute;top:-2px;right:-4px;background:#e23b3b;color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:10px;display:none;align-items:center;justify-content:center;padding:0 4px}.bellbadge.on{display:flex}</style></head><body>
+
+<div id="login" class="center"><div class="lcard">
+  <div class="brand"><div class="crest">RC</div><div><h1>ซ่อมบำรุง</h1><p>เลือกชื่อแล้วใส่ PIN</p></div></div>
+  <div id="pick"><div class="staff-grid" id="grid"></div></div>
+  <div id="pinBox" class="hidden"><label class="fld" id="pinName"></label><div class="pin-dots" id="dots"></div><div class="pad" id="padEl"></div><a class="link" onclick="backPick()">← เลือกคนอื่น</a></div>
+  <div id="lmsg" class="msg"></div>
+</div></div>
+
+<div id="app" class="hidden">
+  <div class="top"><div class="crest">RC</div><div><h1>ซ่อมบำรุง</h1><div class="sub" id="who"></div></div>
+    <div class="sp"><div class="bellw"><button class="bellb" onclick="goNotify()">🔔<span class="bellbadge" id="bellBadge">0</span></button></div><button class="t" onclick="location.href='/'">🏠 หน้ารวม</button><button class="t" onclick="logout()">ออก</button></div></div>
+  <div class="tabs"><button id="tNew" class="on" onclick="tab('new')">แจ้งซ่อม</button><button id="tList" onclick="tab('list')">รายการงาน</button></div>
+  <div class="wrap"><div id="vNew"></div><div id="vList" class="hidden"></div></div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const CONFIG={SUPABASE_URL:'https://ewfwvykelkamdfsnprwo.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk'};
+const sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+const $=id=>document.getElementById(id);
+let sel=null,pin='',me=null,prio='normal',statusFilter='open';
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1900);}
+
+async function loadStaff(){const {data}=await sb.from('core_staff_directory').select('*').order('full_name_th');
+  if(!data||!data.length){$('grid').innerHTML='<div style="color:var(--muted);font-size:14px">ยังไม่มีพนักงานที่ตั้ง PIN</div>';return;}
+  $('grid').innerHTML=data.map(s=>`<button class="sbtn" onclick='pick(${JSON.stringify(s)})'><div class="nm">${esc(s.nickname||s.full_name_th)}</div><div class="nk">${esc(s.full_name_th)}</div></button>`).join('');}
+function pick(s){sel=s;pin='';$('pick').classList.add('hidden');$('pinBox').classList.remove('hidden');$('pinName').textContent='PIN ของ '+(s.nickname||s.full_name_th);pad();dots();$('lmsg').textContent='';}
+function backPick(){sel=null;pin='';$('pinBox').classList.add('hidden');$('pick').classList.remove('hidden');$('lmsg').textContent='';}
+function pad(){$('padEl').innerHTML=['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>k===''?'<span></span>':k==='⌫'?`<button onclick="pinDel()">⌫</button>`:`<button onclick="pinPush('${k}')">${k}</button>`).join('');}
+function dots(){$('dots').innerHTML=[0,1,2,3].map(i=>`<div class="pd ${i<pin.length?'f':''}"></div>`).join('');}
+function pinPush(d){if(pin.length>=4)return;pin+=d;dots();if(pin.length===4)verify();}
+function pinDel(){pin=pin.slice(0,-1);dots();}
+async function verify(){
+  const {data,error}=await sb.rpc('core_verify_staff_pin',{emp_id:sel.id,pin});
+  if(error||!data){$('lmsg').textContent='PIN ไม่ถูกต้อง';pin='';dots();return;}
+  await enterEmp(data.employee.id,data.employee.nickname||data.employee.name);
+}
+async function enterEmp(id,name){
+  const {data:lvl}=await sb.rpc('core_mt_lvl',{p_emp:id});
+  me={id,name,lvl:lvl||0,isTech:(lvl||0)>=20,isMgr:(lvl||0)>=80};
+  try{sessionStorage.setItem('ryc_staff',JSON.stringify({id,name}));}catch(e){}
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');
+  $('who').textContent=me.name+(me.isTech?' · ช่าง':'');
+  tab('new');return true;
+}
+async function enterAsStaff(id){const {data}=await sb.rpc('core_staff_context',{p_emp:id});if(!data||!data.employee)return false;return await enterEmp(data.employee.id,data.employee.nickname||data.employee.name);}
+async function enterAsAuth(user){const {data:emp}=await sb.from('core_employees').select('id,full_name_th,nickname').eq('auth_user_id',user.id).maybeSingle();
+  if(!emp)return false;return await enterEmp(emp.id,emp.nickname||emp.full_name_th);}
+async function pollNotify(){try{const {data}=await sb.rpc('core_notify_maint',{p_emp:me.id});const b=$('bellBadge');if(b){b.textContent=data||0;b.classList.toggle('on',(data||0)>0);}}catch(e){}}
+function goNotify(){location.reload();}
+setInterval(()=>{if(me)pollNotify();},30000);
+async function logout(){await sb.auth.signOut();try{sessionStorage.removeItem('ryc_staff');}catch(e){}location.reload();}
+
+function tab(t){
+  $('tNew').classList.toggle('on',t==='new');$('tList').classList.toggle('on',t==='list');
+  $('vNew').classList.toggle('hidden',t!=='new');$('vList').classList.toggle('hidden',t!=='list');
+  if(t==='new')renderNew();else renderList();
+}
+
+/* ===== แจ้งซ่อม ===== */
+function renderNew(){
+  $('vNew').innerHTML=`
+    <label class="fld">เรื่องที่แจ้ง *</label>
+    <input class="in" id="mTitle" placeholder="เช่น แอร์ห้อง 105 ไม่เย็น / ไฟทางเดินดับ">
+    <label class="fld">สถานที่ / จุด</label>
+    <input class="in" id="mLoc" placeholder="เช่น อาคาร A ชั้น 1 / หลุม 7 / ครัว">
+    <label class="fld">รายละเอียดเพิ่มเติม</label>
+    <textarea class="in" id="mDetail" placeholder="อาการ / สิ่งที่พบ"></textarea>
+    <label class="fld">ความเร่งด่วน</label>
+    <div class="seg"><button id="sgN" class="on" onclick="setPrio('normal')">ปกติ</button><button id="sgU" class="urg" onclick="setPrio('urgent')">🔥 ด่วน</button></div>
+    <label class="fld">รูปถ่าย (ถ้ามี)</label>
+    <input class="in" id="mPhoto" type="file" accept="image/*" capture="environment">
+    <button class="btn" id="mSend" onclick="submitTicket()">ส่งแจ้งซ่อม</button>`;
+  prio='normal';
+}
+function setPrio(p){prio=p;$('sgN').classList.toggle('on',p==='normal');$('sgU').classList.toggle('on',p==='urgent');}
+async function submitTicket(){
+  const title=$('mTitle').value.trim();if(!title){toast('ใส่เรื่องที่แจ้ง');return;}
+  $('mSend').disabled=true;$('mSend').textContent='กำลังส่ง…';
+  let photo=null;
+  const f=$('mPhoto').files&&$('mPhoto').files[0];
+  if(f){
+    const path='t'+Date.now()+'.jpg';
+    const {error:ue}=await sb.storage.from('mt-photos').upload(path,f,{contentType:f.type||'image/jpeg'});
+    if(!ue)photo=sb.storage.from('mt-photos').getPublicUrl(path).data.publicUrl;
+  }
+  const {error}=await sb.rpc('core_mt_create',{p_emp:me.id,p_title:title,p_detail:$('mDetail').value.trim(),p_location:$('mLoc').value.trim(),p_photo:photo,p_priority:prio});
+  $('mSend').disabled=false;$('mSend').textContent='ส่งแจ้งซ่อม';
+  if(error){toast(error.message||'ส่งไม่สำเร็จ');return;}
+  toast('แจ้งซ่อมแล้ว ✓');renderNew();
+}
+
+/* ===== รายการงาน ===== */
+async function renderList(){
+  const chips=[['open','รอซ่อม'],['doing','กำลังซ่อม'],['done','เสร็จแล้ว'],[null,'ทั้งหมด']];
+  $('vList').innerHTML=`<div class="chips">${chips.map(c=>`<button class="chip ${statusFilter===c[0]?'on':''}" onclick='setFilter(${c[0]===null?'null':'"'+c[0]+'"'})'>${c[1]}</button>`).join('')}</div><div id="tkList"><div class="empty">กำลังโหลด…</div></div>`;
+  const {data}=await sb.rpc('core_mt_list',{p_status:statusFilter});
+  const list=data||[];
+  const stTh={open:'รอซ่อม',doing:'กำลังซ่อม',done:'เสร็จแล้ว',cancelled:'ยกเลิก'};
+  $('tkList').innerHTML=list.length?list.map(t=>{
+    const dt=new Date(t.created_at);
+    const canTake=me.isTech&&t.status==='open';
+    const canDone=me.isTech&&(t.status==='open'||t.status==='doing');
+    const canCancel=(t.status==='open'||t.status==='doing')&&(me.isMgr);
+    return `<div class="tk">
+      <div class="h"><b>${esc(t.title)}</b>${t.priority==='urgent'?'<span class="pill urgent">ด่วน</span>':''}<span class="pill ${t.status}">${stTh[t.status]||t.status}</span></div>
+      <div class="meta">${t.location?'📍 '+esc(t.location)+' · ':''}แจ้งโดย ${esc(t.reporter||'')} · ${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}${t.assignee?' · ช่าง: '+esc(t.assignee):''}</div>
+      ${t.detail?`<div class="dt">${esc(t.detail)}</div>`:''}
+      ${t.photo?`<img src="${esc(t.photo)}" alt="">`:''}
+      ${t.done_note?`<div class="dt" style="color:var(--ok)">✓ ${esc(t.done_note)}</div>`:''}
+      ${(canTake||canDone||canCancel)?`<div class="acts">
+        ${canTake?`<button class="mini" onclick="mtTake('${t.id}')">รับงาน</button>`:''}
+        ${canDone?`<button class="mini" style="color:var(--ok)" onclick="mtDone('${t.id}')">ปิดงาน ✓</button>`:''}
+        ${canCancel?`<button class="mini" style="color:var(--danger)" onclick="mtCancel('${t.id}')">ยกเลิก</button>`:''}
+      </div>`:''}</div>`;
+  }).join(''):'<div class="empty">ไม่มีรายการ</div>';
+}
+function setFilter(s){statusFilter=s;renderList();}
+async function mtTake(id){const {error}=await sb.rpc('core_mt_take',{p_emp:me.id,p_ticket:id});
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}toast('รับงานแล้ว');renderList();}
+async function mtDone(id){
+  const note=prompt('บันทึกการซ่อม (ถ้ามี)','');if(note===null)return;
+  const {error}=await sb.rpc('core_mt_done',{p_emp:me.id,p_ticket:id,p_note:note.trim()});
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}toast('ปิดงานแล้ว ✓');renderList();}
+async function mtCancel(id){if(!confirm('ยกเลิกใบแจ้งนี้?'))return;
+  const {error}=await sb.rpc('core_mt_cancel',{p_emp:me.id,p_ticket:id});
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}toast('ยกเลิกแล้ว');renderList();}
+
+async function boot(){const {data}=await sb.auth.getSession();if(data&&data.session){if(await enterAsAuth(data.session.user))return;}
+  try{const st=JSON.parse(sessionStorage.getItem('ryc_staff')||'null');if(st&&st.id){if(await enterAsStaff(st.id))return;}}catch(e){}
+  loadStaff();}
+boot();
+</script>
+</body></html>

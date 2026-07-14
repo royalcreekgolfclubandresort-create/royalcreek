@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Royal Creek Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#123a2a; --green-2:#1b5e3f; --green-line:#2b6b4d;
+    --gold:#c9a24b; --gold-soft:#e6d29a;
+    --cream:#f6f4ee; --card:#ffffff; --ink:#20261f; --muted:#6b7268;
+    --line:#e2ddcf; --danger:#a3352d; --ok:#1b7a4a;
+    --radius:16px; --tap:56px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:'Sarabun',system-ui,sans-serif;color:var(--ink);
+    background:var(--cream);font-size:17px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input{font-family:inherit;font-size:inherit}
+  .hidden{display:none !important}
+
+  /* ---------- Crest ---------- */
+  .crest{width:52px;height:52px;border-radius:14px;background:var(--green);
+    display:flex;align-items:center;justify-content:center;flex:none;
+    border:1.5px solid var(--gold);color:var(--gold);font-weight:700;letter-spacing:.5px}
+  .crest.sm{width:40px;height:40px;border-radius:11px;font-size:15px}
+
+  /* ---------- LOGIN ---------- */
+  #login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(120% 90% at 50% -10%, #16482f 0%, var(--green) 55%, #0d2b1f 100%)}
+  .login-card{width:100%;max-width:420px;background:var(--card);border-radius:22px;
+    padding:30px 26px 26px;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+  .brand h1{margin:0;font-size:20px;font-weight:700;line-height:1.15}
+  .brand p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+
+  .tabs{display:flex;gap:6px;background:#eceadf;border-radius:12px;padding:5px;margin-bottom:22px}
+  .tabs button{flex:1;padding:11px;border-radius:9px;font-weight:600;color:var(--muted);transition:.15s}
+  .tabs button.on{background:var(--card);color:var(--green-2);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+
+  label.fld{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .input{width:100%;height:var(--tap);border:1.5px solid var(--line);border-radius:12px;
+    padding:0 15px;background:#fbfaf5;transition:.15s;margin-bottom:16px}
+  .input:focus{outline:none;border-color:var(--green-2);background:#fff;box-shadow:0 0 0 3px rgba(27,94,63,.12)}
+
+  .btn-primary{width:100%;height:var(--tap);border-radius:12px;background:var(--green-2);
+    color:#fff;font-weight:700;letter-spacing:.2px;transition:.15s}
+  .btn-primary:hover{background:#16523a}
+  .btn-primary:active{transform:translateY(1px)}
+  .btn-primary:disabled{opacity:.55;cursor:default}
+
+  .msg{margin-top:14px;font-size:14px;text-align:center;min-height:20px}
+  .msg.err{color:var(--danger)} .msg.ok{color:var(--ok)}
+
+  /* staff picker */
+  .staff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
+  .staff-btn{padding:15px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fbfaf5;
+    text-align:left;transition:.15s}
+  .staff-btn:hover{border-color:var(--gold)}
+  .staff-btn.on{border-color:var(--green-2);background:#eef5f0}
+  .staff-btn .nm{font-weight:600}
+  .staff-btn .nk{font-size:13px;color:var(--muted)}
+
+  .pin-display{display:flex;gap:12px;justify-content:center;margin:6px 0 18px}
+  .pin-dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--line)}
+  .pin-dot.f{background:var(--green-2);border-color:var(--green-2)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pad button{height:60px;border-radius:13px;background:#fbfaf5;border:1.5px solid var(--line);
+    font-size:22px;font-weight:600;transition:.1s}
+  .pad button:active{background:#eef5f0;transform:scale(.97)}
+  .pad .wide{font-size:15px;font-weight:600;color:var(--muted)}
+  .link{display:block;text-align:center;margin-top:14px;color:var(--green-2);font-weight:600;font-size:14px}
+
+  /* ---------- APP ---------- */
+  #app{min-height:100%;display:flex;flex-direction:column}
+  .topbar{background:var(--green);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;
+    position:sticky;top:0;z-index:5}
+  .topbar h1{margin:0;font-size:17px;font-weight:700;line-height:1.1}
+  .topbar .sub{font-size:12.5px;color:var(--gold-soft)}
+  .topbar .who{margin-left:auto;text-align:right;font-size:13px;line-height:1.25}
+  .topbar .who b{display:block;font-size:14px}
+  .logout{margin-left:8px;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:9px 13px;
+    color:#fff;font-weight:600;font-size:13px}
+  .logout:active{background:rgba(255,255,255,.12)}
+
+  .wrap{max-width:940px;width:100%;margin:0 auto;padding:22px 20px 40px}
+  .section-h{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.4px;
+    text-transform:uppercase;margin:6px 2px 12px}
+
+  /* metrics strip */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:28px}
+  .metric{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+  .metric .k{font-size:13px;color:var(--muted)}
+  .metric .v{font-size:26px;font-weight:700;margin-top:3px}
+  .metric .u{font-size:13px;color:var(--muted);font-weight:400}
+  .metric.empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:14px;padding:20px}
+
+  /* module tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 16px;text-align:left;transition:.15s;position:relative;min-height:120px;
+    display:flex;flex-direction:column;gap:10px}
+  .tile:hover{border-color:var(--gold);box-shadow:0 8px 22px rgba(18,58,42,.10);transform:translateY(-2px)}
+  .tile:active{transform:translateY(0)}
+  .tile .ico{font-size:30px;line-height:1}
+  .tile .nm{font-weight:700;font-size:16px}
+  .tile .tag{position:absolute;top:12px;right:12px;font-size:11px;font-weight:600;
+    padding:3px 8px;border-radius:20px}
+  .tag.deep{background:#e4f0e9;color:#1b6b45}
+  .tag.shallow{background:#f1ede1;color:#8a7433}
+  .tag.internal{background:#eee;color:#666}
+  .tile.locked{opacity:.55}.tile.locked:hover{border-color:var(--line);box-shadow:none;transform:none}
+  .tile .lock{position:absolute;top:12px;left:12px;font-size:15px}
+  .tile.locked .nm{color:var(--muted)}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;
+    opacity:0;transition:.25s;z-index:20;max-width:88%}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .setup{max-width:520px;margin:60px auto;padding:26px;background:#fff;border:1px solid var(--line);
+    border-radius:16px;line-height:1.7}
+  .setup code{background:#f1efe6;padding:2px 6px;border-radius:6px;font-size:14px}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="login">
+  <div class="login-card">
+    <div class="brand">
+      <div class="crest">RC</div>
+      <div>
+        <h1>Royal Creek Platform</h1>
+        <p>ระบบรวมศูนย์ · Udon Thani</p>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button id="tabOwner" class="on" onclick="showTab('owner')">เจ้าของ / ผู้จัดการ</button>
+      <button id="tabStaff" onclick="showTab('staff')">พนักงาน</button>
+    </div>
+
+    <!-- Owner -->
+    <div id="paneOwner">
+      <label class="fld">ชื่อผู้ใช้</label>
+      <input id="username" class="input" autocomplete="username" placeholder="เช่น richard">
+      <label class="fld">รหัสผ่าน</label>
+      <input id="password" class="input" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button id="ownerBtn" class="btn-primary" onclick="loginOwner()">เข้าสู่ระบบ</button>
+    </div>
+
+    <!-- Staff -->
+    <div id="paneStaff" class="hidden">
+      <div id="staffPick">
+        <div class="staff-grid" id="staffGrid"></div>
+      </div>
+      <div id="staffPin" class="hidden">
+        <label class="fld" id="pinName"></label>
+        <div class="pin-display" id="pinDots"></div>
+        <div class="pad" id="pad"></div>
+        <a class="link" onclick="backToPick()">← เลือกคนอื่น</a>
+      </div>
+    </div>
+
+    <div id="loginMsg" class="msg"></div>
+  </div>
+</div>
+
+<!-- ==================== APP ==================== -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="crest sm">RC</div>
+    <div>
+      <h1>Royal Creek Platform</h1>
+      <div class="sub">หน้ารวม · Phase 1</div>
+    </div>
+    <div class="who">
+      <b id="whoName">—</b>
+      <span id="whoRole"></span>
+    </div>
+    <button class="logout" onclick="logout()">ออก</button>
+  </div>
+
+  <div class="wrap">
+    <div id="metricsBlock" class="hidden">
+      <div class="section-h">ยอดวันนี้</div>
+      <div class="metrics" id="metrics"></div>
+    </div>
+
+    <div class="section-h">โมดูล</div>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* =====================================================================
+   CONFIG — ★ ใส่ค่าจาก Supabase project ของ Spine ตรงนี้
+   ===================================================================== */
+const CONFIG = {
+  SUPABASE_URL:      'https://ewfwvykelkamdfsnprwo.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk',
+  INTERNAL_DOMAIN:   'royalcreek.local'   // username -> username@royalcreek.local
+};
+
+/* ---------- init ---------- */
+let sb = null;
+const configured = !CONFIG.SUPABASE_URL.includes('YOUR') && !CONFIG.SUPABASE_ANON_KEY.includes('YOUR');
+if (configured) sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+
+const $ = id => document.getElementById(id);
+let selectedStaff = null, pin = '';
+
+/* ---------- tabs ---------- */
+function showTab(t){
+  $('tabOwner').classList.toggle('on', t==='owner');
+  $('tabStaff').classList.toggle('on', t==='staff');
+  $('paneOwner').classList.toggle('hidden', t!=='owner');
+  $('paneStaff').classList.toggle('hidden', t!=='staff');
+  msg('');
+  if(t==='staff') loadStaff();
+}
+function msg(text, kind){ const m=$('loginMsg'); m.textContent=text||''; m.className='msg'+(kind?' '+kind:''); }
+function toast(text){ const t=$('toast'); t.textContent=text; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* ---------- guard ---------- */
+function needConfig(){
+  if(configured) return false;
+  document.body.innerHTML =
+    '<div class="setup"><h2 style="margin-top:0">ตั้งค่าก่อนใช้งาน</h2>'+
+    '<p>ยังไม่ได้ใส่ค่า Supabase — เปิดไฟล์นี้แล้วแก้ตัวแปร <code>CONFIG</code> ด้านบนสุดของสคริปต์:</p>'+
+    '<p>• <code>SUPABASE_URL</code><br>• <code>SUPABASE_ANON_KEY</code></p>'+
+    '<p>หาได้ที่ Supabase → Project Settings → API แล้วบันทึกไฟล์ รีเฟรชอีกครั้ง</p></div>';
+  return true;
+}
+
+/* =====================================================================
+   OWNER / MANAGER LOGIN
+   ===================================================================== */
+async function loginOwner(){
+  if(needConfig()) return;
+  const u = $('username').value.trim().toLowerCase();
+  const p = $('password').value;
+  if(!u || !p){ msg('กรอกชื่อผู้ใช้และรหัสผ่าน','err'); return; }
+
+  const email = u.includes('@') ? u : (u + '@' + CONFIG.INTERNAL_DOMAIN);
+  $('ownerBtn').disabled = true; msg('กำลังเข้าสู่ระบบ…');
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password:p });
+  $('ownerBtn').disabled = false;
+  if(error){ msg('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง','err'); return; }
+
+  await enterAsOwner(data.user);
+}
+
+async function enterAsOwner(user){
+  const { data: emp } = await sb.from('core_employees')
+    .select('id, full_name_th, nickname').eq('auth_user_id', user.id).maybeSingle();
+
+  const { data: grants } = await sb.from('core_access_grants')
+    .select('module_key, role:core_roles(key,name_th,level)');
+
+  const manager = (grants||[]).some(g => g.role && g.role.level >= 80);
+  const topRole = (grants||[]).map(g=>g.role).filter(Boolean).sort((a,b)=>b.level-a.level)[0];
+
+  const allowedModules = manager ? null
+    : new Set((grants||[]).map(g=>g.module_key));   // null in set = ทุกโมดูล
+
+  startApp({
+    name: emp ? (emp.full_name_th) : (user.email.split('@')[0]),
+    roleName: topRole ? topRole.name_th : 'ผู้ใช้',
+    manager, allowedModules, showMetrics: manager
+  });
+}
+
+/* =====================================================================
+   STAFF LOGIN (name picker + PIN)
+   ===================================================================== */
+async function loadStaff(){
+  if(needConfig()) return;
+  const grid = $('staffGrid'); grid.innerHTML = '<div style="color:var(--muted);font-size:14px">กำลังโหลด…</div>';
+  const { data, error } = await sb.from('core_staff_directory').select('*').order('full_name_th');
+  if(error){ grid.innerHTML=''; msg('โหลดรายชื่อไม่สำเร็จ','err'); return; }
+  if(!data || !data.length){ grid.innerHTML='<div style="color:var(--muted);font-size:14px">ยังไม่มีพนักงานที่ตั้ง PIN</div>'; return; }
+  grid.innerHTML = data.map(s =>
+    `<button class="staff-btn" onclick='pickStaff(${JSON.stringify(s)})'>
+       <div class="nm">${esc(s.nickname || s.full_name_th)}</div>
+       <div class="nk">${esc(s.full_name_th)}</div>
+     </button>`).join('');
+}
+
+function pickStaff(s){
+  selectedStaff = s; pin='';
+  $('staffPick').classList.add('hidden');
+  $('staffPin').classList.remove('hidden');
+  $('pinName').textContent = 'PIN ของ ' + (s.nickname || s.full_name_th);
+  renderPad(); renderDots(); msg('');
+}
+function backToPick(){
+  selectedStaff=null; pin='';
+  $('staffPin').classList.add('hidden');
+  $('staffPick').classList.remove('hidden');
+  msg('');
+}
+function renderPad(){
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  $('pad').innerHTML = keys.map(k=>{
+    if(k==='') return '<span></span>';
+    if(k==='⌫') return `<button class="wide" onclick="pinDel()">⌫</button>`;
+    return `<button onclick="pinPush('${k}')">${k}</button>`;
+  }).join('');
+}
+function renderDots(){
+  $('pinDots').innerHTML = [0,1,2,3].map(i=>`<div class="pin-dot ${i<pin.length?'f':''}"></div>`).join('');
+}
+function pinPush(d){
+  if(pin.length>=4) return;
+  pin+=d; renderDots();
+  if(pin.length===4) verifyPin();
+}
+function pinDel(){ pin=pin.slice(0,-1); renderDots(); }
+
+async function verifyPin(){
+  msg('กำลังตรวจสอบ…');
+  const { data, error } = await sb.rpc('core_verify_staff_pin', { emp_id:selectedStaff.id, pin });
+  if(error || !data){ msg('PIN ไม่ถูกต้อง','err'); pin=''; renderDots(); return; }
+
+  const grants = data.grants || [];
+  enterStaff(data.employee, grants);
+}
+function enterStaff(emp, grants){
+  const manager = grants.some(g => g.level >= 80);
+  const topRole = grants.slice().sort((a,b)=>b.level-a.level)[0];
+  const allowed = manager ? null : new Set(grants.map(g=>g.module));
+  try{ sessionStorage.setItem('ryc_staff', JSON.stringify({id:emp.id, name:emp.name})); }catch(e){}
+  startApp({
+    name: emp.name,
+    roleName: topRole ? roleNameTh(topRole.role) : 'พนักงาน',
+    manager, allowedModules: allowed, showMetrics:false
+  });
+}
+function roleNameTh(k){
+  return {owner:'เจ้าของ',manager:'ผู้จัดการ',cashier:'แคชเชียร์',kitchen:'ครัว',housekeeper:'แม่บ้าน',staff:'พนักงาน'}[k]||k;
+}
+
+/* =====================================================================
+   DASHBOARD
+   ===================================================================== */
+async function startApp(u){
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('whoName').textContent = u.name;
+  $('whoRole').textContent = u.roleName;
+
+  await renderTiles(u.allowedModules);
+  if(u.showMetrics) renderMetrics(); else $('metricsBlock').classList.add('hidden');
+}
+
+async function renderTiles(allowed){
+  const { data: mods } = await sb.from('core_modules').select('*').eq('is_active',true).order('sort_order');
+  $('tiles').innerHTML = (mods||[]).map(m => {
+    const locked = (m.url==='/time.html')?false:(allowed!==null && !(allowed.has(m.key) || allowed.has(null)));
+    return `<button class="tile${locked?' locked':''}" onclick='openModule(${JSON.stringify(m)},${locked})'>
+      ${locked?'<span class="lock">🔒</span>':''}
+      <span class="tag ${m.connect_type}">${connectLabel(m.connect_type)}</span>
+      <span class="ico">${m.icon||'▦'}</span>
+      <span class="nm">${esc(m.name_en||m.name_th)}</span>
+    </button>`;}).join('');
+}
+function connectLabel(t){ return {deep:'เชื่อมลึก',shallow:'เชื่อมตื้น',internal:'ในระบบ'}[t]||t; }
+
+function openModule(m, locked){
+  if(locked){ toast('คุณไม่มีสิทธิ์เข้า “'+m.name_th+'” — ติดต่อผู้จัดการ'); return; }
+  if(m.url && m.url !== '#'){ window.location.href = m.url; return; }
+  toast('“'+m.name_th+'” จะเชื่อมใน Phase ถัดไป');
+}
+
+async function renderMetrics(){
+  $('metricsBlock').classList.remove('hidden');
+  const today = new Date().toISOString().slice(0,10);
+  const { data } = await sb.from('core_daily_metrics')
+    .select('metric_key, metric_value, venue:core_venues(code)').eq('metric_date', today);
+
+  const box = $('metrics');
+  if(!data || !data.length){
+    box.innerHTML = '<div class="metric empty">ยังไม่มีข้อมูลวันนี้ — โมดูลจะส่งยอดเข้ามาเมื่อเชื่อมต่อแล้ว</div>';
+    return;
+  }
+  box.innerHTML = data.map(d => `
+    <div class="metric">
+      <div class="k">${esc(metricLabel(d.metric_key))} ${d.venue?('· '+esc(d.venue.code)):''}</div>
+      <div class="v">${fmt(d.metric_value)}</div>
+    </div>`).join('');
+}
+function metricLabel(k){
+  return {sales_total:'ยอดขาย',rooms_cleaned:'ห้องที่ทำความสะอาด',orders:'ออเดอร์'}[k]||k;
+}
+
+/* =====================================================================
+   SESSION / LOGOUT
+   ===================================================================== */
+async function logout(){
+  if(sb) await sb.auth.signOut();
+  try{ sessionStorage.removeItem('ryc_staff'); }catch(e){}
+  selectedStaff=null; pin='';
+  $('app').classList.add('hidden');
+  $('login').classList.remove('hidden');
+  showTab('owner');
+  $('username').value=''; $('password').value='';
+}
+
+/* คงสถานะเจ้าของไว้ถ้ายังล็อกอินอยู่ */
+async function boot(){
+  if(needConfig()) return;
+  const { data } = await sb.auth.getSession();
+  if(data && data.session){ await enterAsOwner(data.session.user); return; }
+  try{
+    const st=JSON.parse(sessionStorage.getItem('ryc_staff')||'null');
+    if(st && st.id){
+      const { data:ctx } = await sb.rpc('core_staff_context',{p_emp:st.id});
+      if(ctx && ctx.employee){ enterStaff(ctx.employee, ctx.grants||[]); return; }
+    }
+  }catch(e){}
+}
+
+/* ---------- utils ---------- */
+function esc(s){ return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function fmt(n){ return Number(n).toLocaleString('th-TH'); }
+
+/* enter key on owner form */
+$('password').addEventListener('keydown', e=>{ if(e.key==='Enter') loginOwner(); });
+$('username').addEventListener('keydown', e=>{ if(e.key==='Enter') $('password').focus(); });
+
+boot();
+</script>
+</body>
+</html>

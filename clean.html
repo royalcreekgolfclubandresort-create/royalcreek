@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>แม่บ้าน · Royal Creek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#123a2a; --green-2:#1b5e3f; --gold:#c9a24b; --gold-soft:#e6d29a;
+    --cream:#f6f4ee; --card:#fff; --ink:#20261f; --muted:#6b7268; --line:#e2ddcf;
+    --danger:#a3352d; --ok:#1b7a4a; --okbg:#e4f0e9; --tap:56px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:'Sarabun',system-ui,sans-serif;color:var(--ink);background:var(--cream);
+    font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit;font-size:inherit}
+  .hidden{display:none !important}
+  .crest{width:44px;height:44px;border-radius:12px;background:var(--green);display:flex;
+    align-items:center;justify-content:center;border:1.5px solid var(--gold);color:var(--gold);
+    font-weight:700;font-size:15px;flex:none}
+
+  /* login */
+  #login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:22px;
+    background:radial-gradient(120% 90% at 50% -10%,#16482f,var(--green) 55%,#0d2b1f)}
+  .card{width:100%;max-width:420px;background:var(--card);border-radius:22px;padding:28px 24px;
+    box-shadow:0 24px 60px rgba(0,0,0,.28)}
+  .brand{display:flex;align-items:center;gap:13px;margin-bottom:22px}
+  .brand h1{margin:0;font-size:19px;font-weight:700}.brand p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .fld{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .staff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .staff-btn{padding:15px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fbfaf5;text-align:left}
+  .staff-btn:active{background:#eef5f0}.staff-btn .nm{font-weight:600}.staff-btn .nk{font-size:13px;color:var(--muted)}
+  .pin-dots{display:flex;gap:12px;justify-content:center;margin:8px 0 18px}
+  .pin-dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--line)}
+  .pin-dot.f{background:var(--green-2);border-color:var(--green-2)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pad button{height:60px;border-radius:13px;background:#fbfaf5;border:1.5px solid var(--line);font-size:22px;font-weight:600}
+  .pad button:active{background:#eef5f0;transform:scale(.97)}
+  .pad .wide{font-size:15px;color:var(--muted)}
+  .link{display:block;text-align:center;margin-top:14px;color:var(--green-2);font-weight:600;font-size:14px}
+  .msg{margin-top:12px;text-align:center;font-size:14px;min-height:20px}.msg.err{color:var(--danger)}
+
+  /* app */
+  .topbar{background:var(--green);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;
+    position:sticky;top:0;z-index:5}
+  .topbar h1{margin:0;font-size:16px;font-weight:700}.topbar .sub{font-size:12px;color:var(--gold-soft)}
+  .topbar .sp{margin-left:auto}
+  .logout{border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:8px 12px;color:#fff;font-weight:600;font-size:13px}
+
+  .tabs2{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:60px;z-index:4}
+  .tabs2 button{flex:1;padding:13px;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent}
+  .tabs2 button.on{color:var(--green-2);border-bottom-color:var(--green-2)}
+
+  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 90px}
+
+  .progress{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px;
+    display:flex;align-items:center;gap:14px}
+  .progress .big{font-size:26px;font-weight:700}.progress .lbl{font-size:13px;color:var(--muted)}
+  .bar{flex:1;height:9px;background:#eceadf;border-radius:6px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--green-2);border-radius:6px;transition:.3s}
+
+  .area{margin-bottom:14px}
+  .area-h{font-weight:700;font-size:15px;margin:0 2px 8px;display:flex;align-items:center;gap:8px}
+  .area-h .cnt{font-size:13px;color:var(--muted);font-weight:500}
+  .pt{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:8px;
+    display:flex;align-items:center;gap:12px}
+  .pt:active{background:#fbfaf5}
+  .pt .chk{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);flex:none;display:flex;
+    align-items:center;justify-content:center;color:#fff;font-size:15px}
+  .pt.done{opacity:.6}.pt.done .chk{background:var(--ok);border-color:var(--ok)}
+  .pt .nm{flex:1;font-weight:500}.pt .cam{font-size:15px;color:var(--gold)}
+  .freq-tag{font-size:11px;color:var(--muted);background:#f1ede1;padding:2px 7px;border-radius:20px}
+
+  .fab{position:fixed;left:16px;right:16px;bottom:16px;max-width:688px;margin:0 auto;height:54px;border-radius:14px;
+    background:var(--green-2);color:#fff;font-weight:700;font-size:16px;box-shadow:0 10px 24px rgba(18,58,42,.3);z-index:6}
+  .fab:disabled{opacity:.5}
+
+  /* manage */
+  .mrow{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;
+    display:flex;align-items:center;gap:10px}
+  .mrow .nm{flex:1;font-weight:500}
+  .mini{border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:13px;font-weight:600;color:var(--green-2)}
+  .addbtn{width:100%;height:50px;border-radius:12px;border:1.5px dashed var(--gold);color:#8a6d1f;font-weight:700;margin-bottom:16px}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(20,25,20,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+  .sheet{background:var(--card);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:22px 20px 26px;max-height:88vh;overflow:auto}
+  .sheet h3{margin:0 0 16px}
+  .row{margin-bottom:14px}.row label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+  .in{width:100%;height:50px;border:1.5px solid var(--line);border-radius:11px;padding:0 13px;background:#fbfaf5}
+  .in:focus{outline:none;border-color:var(--green-2);background:#fff}
+  .togg{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);border-radius:11px;background:#fbfaf5}
+  .togg input{width:20px;height:20px}
+  .save{width:100%;height:52px;border-radius:12px;background:var(--green-2);color:#fff;font-weight:700;margin-top:6px}
+  .ghost{width:100%;height:46px;border-radius:12px;color:var(--muted);font-weight:600;margin-top:8px}
+
+  .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(20px);background:var(--ink);
+    color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:30;max-width:88%;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .empty{text-align:center;color:var(--muted);padding:40px 20px}
+  /* dashboard */
+  .metric{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .metric .lbl2{font-size:12px;color:var(--muted)}
+  .metric .big2{font-size:22px;font-weight:700}
+  .dash-h{font-weight:700;font-size:14px;margin:16px 2px 10px}
+  .arow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 13px;margin-bottom:7px}
+  .arow-n{flex:1;font-size:14px;font-weight:500;min-width:0}
+  .arow-c{font-size:13px;color:var(--muted);font-weight:600;white-space:nowrap}
+  .bar.sm{max-width:130px}
+  .prow{display:flex;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin-bottom:7px}
+  .prow .pc{color:var(--green-2);font-weight:700}
+  .chart{display:flex;align-items:flex-end;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 12px 8px}
+  .cbar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px}
+  .cbar-n{font-size:11px;font-weight:600;color:var(--muted)}
+  .cbar-v{width:68%;min-height:2px;background:var(--green-2);border-radius:5px 5px 0 0}
+  .cbar-l{font-size:10px;color:var(--muted)}
+  .setup{max-width:520px;margin:60px auto;padding:26px;background:#fff;border:1px solid var(--line);border-radius:16px;line-height:1.7}
+  .setup code{background:#f1efe6;padding:2px 6px;border-radius:6px;font-size:14px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.bellw{position:relative;display:inline-flex;margin-left:8px}.bellb{background:none;border:none;font-size:22px;cursor:pointer;position:relative;padding:4px}.bellbadge{position:absolute;top:-2px;right:-4px;background:#e23b3b;color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:10px;display:none;align-items:center;justify-content:center;padding:0 4px}.bellbadge.on{display:flex}</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="card">
+    <div class="brand"><div class="crest">RC</div>
+      <div><h1>งานแม่บ้าน</h1><p>Royal Creek · เลือกชื่อแล้วใส่ PIN</p></div></div>
+    <div id="pick"><div class="staff-grid" id="grid"></div></div>
+    <div id="pinBox" class="hidden">
+      <label class="fld" id="pinName"></label>
+      <div class="pin-dots" id="dots"></div>
+      <div class="pad" id="pad"></div>
+      <a class="link" onclick="backPick()">← เลือกคนอื่น</a>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <div class="topbar"><div class="crest">RC</div>
+    <div><h1>งานแม่บ้าน</h1><div class="sub" id="hello"></div></div>
+    <div class="sp"></div><div class="bellw"><button class="bellb" onclick="goNotify()">🔔<span class="bellbadge" id="bellBadge">0</span></button></div><button class="logout" onclick="location.href='/'">🏠 หน้ารวม</button><button class="logout" onclick="logout()">ออก</button></div>
+  <div class="tabs2">
+    <button id="tabDash" class="hidden" onclick="tab('dash')">ภาพรวม</button>
+    <button id="tabToday" class="on" onclick="tab('today')">งานวันนี้</button>
+    <button id="tabReview" class="hidden" onclick="tab('review')">ตรวจรับ</button>
+    <button id="tabManage" class="hidden" onclick="tab('manage')">จัดการ</button>
+  </div>
+  <div class="wrap">
+    <div id="viewDash" class="hidden"></div>
+    <div id="viewToday"></div>
+    <div id="viewReview" class="hidden"></div>
+    <div id="viewManage" class="hidden"></div>
+  </div>
+  <button id="submitBtn" class="fab hidden" onclick="submitWork()">ส่งงานวันนี้</button>
+</div>
+
+<div id="modal"></div>
+<div id="toast" class="toast"></div>
+<input id="camera" type="file" accept="image/*" capture="environment" class="hidden">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ===== CONFIG (โปรเจกต์เดียวกับ Platform) ===== */
+const CONFIG = {
+  SUPABASE_URL:      'https://ewfwvykelkamdfsnprwo.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk',
+  MAKE_WEBHOOK_URL:  ''   // ← ใส่ URL ของ Make.com ถ้าอยากให้ส่งสรุปเข้า LINE (เว้นว่าง = ข้าม)
+};
+const configured = !CONFIG.SUPABASE_URL.includes('YOUR') && !CONFIG.SUPABASE_ANON_KEY.includes('YOUR');
+let sb = configured ? supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY) : null;
+
+const $ = id => document.getElementById(id);
+let me = null, sel = null, pin = '', today = [], areasCache = [], buildingsCache = [];
+
+/* ---- utils ---- */
+function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200);}
+function msg(t){$('msg').textContent=t||'';$('msg').className='msg err';}
+const FREQ_TH={daily:'ทุกวัน',weekly:'ทุกสัปดาห์',monthly:'ทุกเดือน'};
+function freqLabel(f,d){if(f==='monthly')return 'ทุกเดือน (วันที่ '+(d||1)+')';if(f==='weekly')return 'ทุกสัปดาห์';return 'ทุกวัน';}
+
+function guard(){
+  if(configured) return false;
+  document.body.innerHTML='<div class="setup"><h2>ตั้งค่าก่อนใช้งาน</h2><p>ยังไม่ได้ใส่ค่า Supabase ในตัวแปร <code>CONFIG</code></p></div>';
+  return true;
+}
+
+/* ===== LOGIN ===== */
+async function loadStaff(){
+  if(guard())return;
+  const {data,error}=await sb.from('core_staff_directory').select('*').order('full_name_th');
+  if(error){msg('โหลดรายชื่อไม่สำเร็จ');return;}
+  if(!data||!data.length){$('grid').innerHTML='<div style="color:var(--muted);font-size:14px">ยังไม่มีพนักงานที่ตั้ง PIN</div>';return;}
+  $('grid').innerHTML=data.map(s=>`<button class="staff-btn" onclick='pickStaff(${JSON.stringify(s)})'>
+    <div class="nm">${esc(s.nickname||s.full_name_th)}</div><div class="nk">${esc(s.full_name_th)}</div></button>`).join('');
+}
+function pickStaff(s){sel=s;pin='';$('pick').classList.add('hidden');$('pinBox').classList.remove('hidden');
+  $('pinName').textContent='PIN ของ '+(s.nickname||s.full_name_th);pad();dots();$('msg').textContent='';}
+function backPick(){sel=null;pin='';$('pinBox').classList.add('hidden');$('pick').classList.remove('hidden');$('msg').textContent='';}
+function pad(){$('pad').innerHTML=['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>k===''?'<span></span>':
+  k==='⌫'?`<button class="wide" onclick="pinDel()">⌫</button>`:`<button onclick="pinPush('${k}')">${k}</button>`).join('');}
+function dots(){$('dots').innerHTML=[0,1,2,3].map(i=>`<div class="pin-dot ${i<pin.length?'f':''}"></div>`).join('');}
+function pinPush(d){if(pin.length>=4)return;pin+=d;dots();if(pin.length===4)verify();}
+function pinDel(){pin=pin.slice(0,-1);dots();}
+async function verify(){
+  const {data,error}=await sb.rpc('core_verify_staff_pin',{emp_id:sel.id,pin});
+  if(error||!data){msg('PIN ไม่ถูกต้อง');pin='';dots();return;}
+  enterFromGrants(data.employee, data.grants||[]);
+}
+function enterFromGrants(emp, gs){
+  const isHead=gs.some(g=>(g.level>=50)&&(g.module==='housekeeping'||g.module==null));
+  me={id:emp.id,name:emp.nickname||emp.name,isHead};
+  try{sessionStorage.setItem('ryc_staff',JSON.stringify({id:emp.id,name:me.name}));}catch(e){}
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');
+  $('hello').textContent='สวัสดี '+me.name;
+  $('tabDash').classList.toggle('hidden',!isHead);
+  $('tabReview').classList.toggle('hidden',!isHead);
+  $('tabManage').classList.toggle('hidden',!isHead);
+  tab(isHead?'dash':'today');
+  return true;
+}
+async function enterAsStaff(id){const {data}=await sb.rpc('core_staff_context',{p_emp:id});if(!data||!data.employee)return false;return enterFromGrants(data.employee,data.grants||[]);}
+
+/* ===== TABS ===== */
+function tab(t){
+  $('tabDash').classList.toggle('on',t==='dash');$('tabReview').classList.toggle('on',t==='review');
+  $('tabToday').classList.toggle('on',t==='today');$('tabManage').classList.toggle('on',t==='manage');
+  $('viewDash').classList.toggle('hidden',t!=='dash');$('viewReview').classList.toggle('hidden',t!=='review');
+  $('viewToday').classList.toggle('hidden',t!=='today');$('viewManage').classList.toggle('hidden',t!=='manage');
+  $('submitBtn').classList.toggle('hidden',t!=='today');
+  if(t==='dash')loadDash();
+  if(t==='today')loadToday();
+  if(t==='review')loadReview();
+  if(t==='manage')loadManage();
+}
+
+/* ===== ตรวจรับงาน (หัวหน้าแม่บ้าน) ===== */
+function isoHK(d){return d.toISOString().slice(0,10);}
+async function loadReview(){
+  if(!document.getElementById('rvDate')){
+    $('viewReview').innerHTML=`<div class="g2" style="display:flex;gap:10px;align-items:end;margin-bottom:12px">
+      <div style="flex:1"><label class="fld" style="display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px">วันที่</label>
+      <input class="in" id="rvDate" type="date" value="${isoHK(new Date())}" onchange="loadReview()" style="width:100%;height:46px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px;background:#fff"></div></div>
+      <div id="rvBody"><div class="empty">กำลังโหลด…</div></div>`;
+  }
+  const {data,error}=await sb.rpc('core_hk_review_list',{p_emp:me.id,p_date:$('rvDate').value});
+  if(error||!data){$('rvBody').innerHTML='<div class="empty">'+(error?error.message:'โหลดไม่สำเร็จ')+'</div>';return;}
+  const items=data.items||[];const redo=data.redo||[];
+  const waits=items.filter(x=>x.status==='wait');const oks=items.filter(x=>x.status==='ok');
+  const card=(x,withBtns)=>{const dt=new Date(x.at);
+    return `<div style="background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        ${x.photo?`<img src="${esc(x.photo)}" onclick="bigPic('${esc(x.photo)}')" style="width:74px;height:74px;object-fit:cover;border-radius:10px;flex:none;cursor:pointer">`:''}
+        <div style="flex:1"><b>${esc(x.point||'')}</b><div style="font-size:12px;color:var(--muted)">${esc(x.area||'')} · ${esc(x.by||'')} · ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} น.${x.note?' · '+esc(x.note):''}</div>
+        ${withBtns?`<div style="display:flex;gap:8px;margin-top:9px">
+          <button onclick="hkReview('${x.id}',true)" style="border:1px solid var(--line);border-radius:9px;padding:8px 14px;font-weight:600;color:var(--ok);background:#fff">✓ ผ่าน</button>
+          <button onclick="hkReview('${x.id}',false)" style="border:1px solid var(--line);border-radius:9px;padding:8px 14px;font-weight:600;color:var(--danger);background:#fff">✗ สั่งทำใหม่</button></div>`:''}
+        </div></div></div>`;};
+  const redoRows=redo.map(r=>{const dt=new Date(r.redo_at);
+    return `<div style="background:#faece9;border:1px solid #eecfc9;border-radius:13px;padding:11px 14px;margin-bottom:8px;font-size:13px">
+      <b>${esc(r.point||'')}</b> · ${esc(r.area||'')}<br><span style="color:var(--muted);font-size:12px">ทำโดย ${esc(r.by||'')} · สั่งทำใหม่โดย ${esc(r.lead||'')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} น.</span><br>เหตุผล: ${esc(r.redo_note||'')}</div>`;}).join('');
+  // จัดกลุ่มตามพื้นที่
+  const byArea={};
+  waits.forEach(x=>{(byArea[x.area||'ไม่ระบุพื้นที่']=byArea[x.area||'ไม่ระบุพื้นที่']||[]).push(x);});
+  const areaNames=Object.keys(byArea).sort((a,b)=>a.localeCompare(b,'th'));
+  const areaBlocks=areaNames.map((an,idx)=>{
+    const arr=byArea[an];const gid='rvg'+idx;
+    return `<div style="border:1px solid var(--line);border-radius:13px;margin-bottom:10px;overflow:hidden">
+      <div onclick="document.getElementById('${gid}').classList.toggle('hidden');this.querySelector('.chev').textContent=document.getElementById('${gid}').classList.contains('hidden')?'▸':'▾'"
+        style="display:flex;justify-content:space-between;align-items:center;padding:13px 15px;background:#eef5f0;cursor:pointer;font-weight:700">
+        <span>📍 ${esc(an)}</span><span style="display:flex;gap:8px;align-items:center"><span style="background:var(--danger);color:#fff;border-radius:20px;padding:1px 10px;font-size:13px">${arr.length}</span><span class="chev">▾</span></span></div>
+      <div id="${gid}" style="padding:12px">${arr.map(x=>card(x,true)).join('')}</div></div>`;}).join('');
+  $('rvBody').innerHTML=
+    `<div style="font-weight:700;margin:4px 2px 10px">รอตรวจ (${waits.length}) · แยกตามพื้นที่</div>`+
+    (areaBlocks||'<div class="empty">ไม่มีงานรอตรวจ</div>')+
+    (redo.length?`<div style="font-weight:700;margin:16px 2px 10px;color:var(--danger)">สั่งทำใหม่วันนี้ (${redo.length})</div>`+redoRows:'')+
+    `<div style="font-weight:700;margin:16px 2px 10px;color:var(--ok)">ผ่านแล้ว (${oks.length})</div>`+
+    (oks.length?`<button class="mini" onclick="document.getElementById('okList').classList.toggle('hidden')">แสดง/ซ่อน</button><div id="okList" class="hidden" style="margin-top:8px">${oks.map(x=>card(x,false)).join('')}</div>`:'<div class="empty">ยังไม่มี</div>');
+}
+async function hkReview(id,ok){
+  let note=null;
+  if(!ok){note=prompt('เหตุผลที่สั่งทำใหม่ (แม่บ้านจะต้องกลับไปทำจุดนี้อีกครั้ง)');if(note===null)return;
+    if(!note.trim()){toast('ต้องระบุเหตุผล');return;}}
+  else{if(!confirm('ยืนยันตรวจผ่านงานนี้?'))return;}
+  const {error}=await sb.rpc('core_hk_review',{p_emp:me.id,p_insp:id,p_ok:ok,p_note:note});
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}
+  toast(ok?'ตรวจผ่านแล้ว ✓':'สั่งทำใหม่แล้ว — จุดนี้กลับเป็นงานค้าง');
+  loadReview();
+}
+
+/* ===== ภาพรวม (หัวหน้าแม่บ้าน) ===== */
+async function loadDash(){
+  $('viewDash').innerHTML='<div class="empty">กำลังโหลด…</div>';
+  const {data,error}=await sb.rpc('core_hk_dashboard',{p_emp:me.id});
+  if(error||!data){$('viewDash').innerHTML='<div class="empty">โหลดภาพรวมไม่สำเร็จ</div>';return;}
+  renderDash(data);
+}
+function renderDash(d){
+  const t=d.today||{total:0,done:0,pending:0};
+  const pct=t.total?Math.round(t.done/t.total*100):0;
+  let h=`<div class="progress"><div><div class="big">${t.done}/${t.total}</div><div class="lbl">ทำแล้ววันนี้ (${pct}%)</div></div>
+    <div class="bar"><i style="width:${pct}%"></i></div></div>
+    <div style="display:flex;gap:10px;margin-bottom:6px">
+      <div class="metric" style="flex:1"><div class="lbl2">ค้าง</div><div class="big2">${t.pending}</div></div>
+      <div class="metric" style="flex:1"><div class="lbl2">เสร็จ</div><div class="big2">${t.done}</div></div>
+      <div class="metric" style="flex:1"><div class="lbl2">ทั้งหมด</div><div class="big2">${t.total}</div></div></div>`;
+
+  h+=`<div class="dash-h">แยกตามพื้นที่</div>`;
+  const areas=d.by_area||[];
+  if(areas.length) areas.forEach(a=>{
+    const p=a.total?Math.round(a.done/a.total*100):0;
+    h+=`<div class="arow"><div class="arow-n">${esc(a.area)}</div>
+      <div class="bar sm"><i style="width:${p}%"></i></div><div class="arow-c">${a.done}/${a.total}</div></div>`;
+  }); else h+='<div class="empty" style="padding:16px">ยังไม่มีข้อมูล</div>';
+
+  h+=`<div class="dash-h">แม่บ้านวันนี้</div>`;
+  const ppl=d.by_person||[];
+  if(ppl.length) ppl.forEach(p=>{h+=`<div class="prow"><span>${esc(p.name)}</span><span class="pc">${p.cnt} จุด</span></div>`;});
+  else h+='<div class="empty" style="padding:16px">ยังไม่มีใครตรวจวันนี้</div>';
+
+  h+=`<div class="dash-h">ย้อนหลัง 7 วัน</div><div class="chart">`;
+  const l7=d.last7||[]; const max=Math.max(1,...l7.map(x=>x.cnt));
+  l7.forEach(x=>{
+    const px=Math.round(x.cnt/max*96); const dt=new Date(x.d);
+    h+=`<div class="cbar"><div class="cbar-n">${x.cnt}</div>
+      <div class="cbar-v" style="height:${px}px"></div>
+      <div class="cbar-l">${dt.getDate()}/${dt.getMonth()+1}</div></div>`;
+  });
+  h+='</div>';
+  $('viewDash').innerHTML=h;
+}
+
+/* ===== งานวันนี้ ===== */
+async function loadToday(){
+  const {data,error}=await sb.rpc('core_hk_today',{p_emp:me.id});
+  if(error){$('viewToday').innerHTML='<div class="empty">โหลดงานไม่สำเร็จ</div>';return;}
+  today=(data||[]).filter(r=>r.is_due||r.done_today);  // เฉพาะที่เกี่ยวข้องวันนี้
+  renderToday();
+}
+function renderToday(){
+  const total=today.length, done=today.filter(r=>r.done_today).length;
+  if(!total){$('viewToday').innerHTML='<div class="empty">วันนี้ไม่มีงานที่ถึงกำหนด 🎉</div>';$('submitBtn').disabled=true;return;}
+  $('submitBtn').disabled=false;
+  const pct=Math.round(done/total*100);
+  let html=`<div class="progress"><div><div class="big">${done}/${total}</div><div class="lbl">ทำแล้ววันนี้</div></div>
+    <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  const byArea={};
+  today.forEach(r=>{(byArea[r.area_id]=byArea[r.area_id]||{name:r.area_name,rows:[]}).rows.push(r);});
+  Object.values(byArea).forEach(a=>{
+    const d=a.rows.filter(r=>r.done_today).length;
+    html+=`<div class="area"><div class="area-h">${esc(a.name)} <span class="cnt">${d}/${a.rows.length}</span></div>`;
+    a.rows.sort((x,y)=>(x.done_today?1:0)-(y.done_today?1:0));
+    a.rows.forEach(r=>{
+      html+=`<div class="pt ${r.done_today?'done':''}" onclick='togglePoint(${r.point_id})'>
+        <div class="chk">${r.done_today?'✓':''}</div>
+        <div class="nm">${esc(r.point_name)}</div>
+        ${r.photo_required?'<span class="cam">📷</span>':''}
+        <span class="freq-tag">${freqLabel(r.frequency,r.due_day)}</span></div>`;
+    });
+    html+='</div>';
+  });
+  $('viewToday').innerHTML=html;
+}
+
+let pendingPoint=null;
+function togglePoint(pid){
+  const r=today.find(x=>x.point_id===pid);if(!r)return;
+  if(r.done_today){ if(confirm('ยกเลิกการติ๊กจุดนี้ (เอาเครื่องหมายถูกออก)?')) undoPoint(pid); }
+  else doPoint(pid);
+}
+async function undoPoint(pid){
+  const {error}=await sb.rpc('core_hk_unlog',{p_emp:me.id,p_point:pid});
+  if(error){toast('ยกเลิกไม่สำเร็จ');return;}
+  const r=today.find(x=>x.point_id===pid);if(r){r.done_today=false;r.is_due=true;}
+  renderToday();toast('ยกเลิกแล้ว');
+}
+function doPoint(pid){
+  const r=today.find(x=>x.point_id===pid);if(!r)return;
+  if(r.photo_required){pendingPoint=pid;$('camera').click();}
+  else logPoint(pid,null);
+}
+$('camera').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f||!pendingPoint)return;
+  const pid=pendingPoint;pendingPoint=null;
+  toast('กำลังอัปโหลดรูป…');
+  const path=pid+'/'+Date.now()+'.jpg';
+  const {error}=await sb.storage.from('hk-photos').upload(path,f,{contentType:f.type||'image/jpeg'});
+  if(error){toast('อัปโหลดรูปไม่สำเร็จ');return;}
+  const url=sb.storage.from('hk-photos').getPublicUrl(path).data.publicUrl;
+  logPoint(pid,url);
+});
+async function logPoint(pid,url){
+  const {error}=await sb.rpc('core_hk_log',{p_emp:me.id,p_point:pid,p_photo:url,p_note:null});
+  if(error){toast('บันทึกไม่สำเร็จ');return;}
+  const r=today.find(x=>x.point_id===pid);if(r){r.done_today=true;r.is_due=false;}
+  renderToday();toast('บันทึกแล้ว ✓');
+}
+async function submitWork(){
+  const {data,error}=await sb.rpc('core_hk_submit',{p_emp:me.id});
+  if(error){toast('ส่งงานไม่สำเร็จ');return;}
+  toast('ส่งงานแล้ว · ทำ '+data+' จุดวันนี้');
+  if(CONFIG.MAKE_WEBHOOK_URL){
+    fetch(CONFIG.MAKE_WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({by:me.name,done:data,date:new Date().toISOString().slice(0,10)})}).catch(()=>{});
+  }
+}
+
+/* ===== จัดการจุดตรวจ ===== */
+async function loadManage(){
+  const [{data:areas},{data:pts},{data:blds}]=await Promise.all([
+    sb.from('core_hk_areas').select('*').order('sort_order'),
+    sb.from('core_hk_points').select('*').order('sort_order'),
+    sb.from('core_hk_buildings').select('*').order('sort_order')
+  ]);
+  areasCache=areas||[]; buildingsCache=blds||[];
+  let html=`<div style="display:flex;gap:10px;margin-bottom:10px">
+    <button class="addbtn" style="flex:1;margin:0" onclick="openAdd()">＋ เพิ่มงาน</button>
+    <button class="addbtn" style="flex:1;margin:0" onclick="openAddArea()">＋ เพิ่มพื้นที่</button></div>
+    <button class="addbtn" onclick="openAssign()">👤 มอบหมายพื้นที่ให้พนักงาน</button>`;
+  (areas||[]).forEach(a=>{
+    const rows=(pts||[]).filter(p=>p.area_id===a.id);
+    html+=`<div class="area"><div class="area-h">${a.active?'':'⚪ '}${esc(a.name)}
+      <span class="cnt">${rows.length} จุด</span>
+      <button class="mini" style="margin-left:auto" onclick='openEditArea(${JSON.stringify(a)})'>พื้นที่</button></div>`;
+    rows.forEach(p=>{
+      html+=`<div class="mrow"><div class="nm">${p.active?'':'⚪ '}${esc(p.name)}<br>
+        <span class="freq-tag">${freqLabel(p.frequency,p.due_day)}</span>
+        ${p.photo_required?'<span class="freq-tag">📷 ถ่ายรูป</span>':''}</div>
+        <button class="mini" onclick='openEdit(${JSON.stringify(p)})'>แก้ไข</button></div>`;
+    });
+    html+='</div>';
+  });
+  $('viewManage').innerHTML=html;
+}
+
+function freqControls(freq,due){
+  return `<div class="row"><label>ความถี่</label>
+    <select class="in" id="mFreq" onchange="onFreqChange()">
+      <option value="daily" ${freq==='daily'?'selected':''}>ทุกวัน</option>
+      <option value="weekly" ${freq==='weekly'?'selected':''}>ทุกสัปดาห์</option>
+      <option value="monthly" ${freq==='monthly'?'selected':''}>ทุกเดือน</option></select></div>
+    <div class="row" id="dueRow" style="${freq==='monthly'?'':'display:none'}">
+      <label>ทำทุกวันที่ (ของเดือน)</label>
+      <input class="in" id="mDue" type="number" min="1" max="28" value="${due||1}"></div>`;
+}
+function onFreqChange(){$('dueRow').style.display=$('mFreq').value==='monthly'?'':'none';}
+
+function openAdd(){
+  const opts=areasCache.filter(a=>a.active).map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>เพิ่มงานใหม่</h3>
+    <div class="row"><label>พื้นที่</label><select class="in" id="mArea">${opts}</select></div>
+    <div class="row"><label>ชื่องาน/จุดตรวจ</label><input class="in" id="mName" placeholder="เช่น เช็ดกระจกล็อบบี้"></div>
+    ${freqControls('daily',1)}
+    <label class="togg"><input type="checkbox" id="mPhoto"> บังคับถ่ายรูปจุดนี้</label>
+    <button class="save" onclick="saveAdd()">เพิ่มงาน</button>
+    <button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function saveAdd(){
+  const name=$('mName').value.trim();if(!name){toast('ใส่ชื่องานก่อน');return;}
+  const freq=$('mFreq').value, due=freq==='monthly'?parseInt($('mDue').value||'1'):null;
+  const {error}=await sb.rpc('core_hk_add_point',{p_emp:me.id,p_area:parseInt($('mArea').value),
+    p_name:name,p_freq:freq,p_due:due,p_photo:$('mPhoto').checked});
+  if(error){toast('เพิ่มไม่สำเร็จ');return;}
+  closeModal();toast('เพิ่มงานแล้ว');loadManage();
+}
+function openEdit(p){
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>แก้ไขจุดตรวจ</h3>
+    <div class="row"><label>ชื่องาน</label><input class="in" id="mName" value="${esc(p.name)}"></div>
+    ${freqControls(p.frequency||'daily',p.due_day)}
+    <label class="togg"><input type="checkbox" id="mPhoto" ${p.photo_required?'checked':''}> บังคับถ่ายรูปจุดนี้</label>
+    <label class="togg" style="margin-top:10px"><input type="checkbox" id="mActive" ${p.active?'checked':''}> เปิดใช้งาน</label>
+    <button class="save" onclick="saveEdit(${p.id})">บันทึก</button>
+    <button class="ghost" style="color:var(--danger)" onclick="deletePoint(${p.id})">ลบจุดนี้ถาวร</button>
+    <button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function deletePoint(pid){
+  if(!confirm('ลบจุดตรวจนี้ถาวร? ลบแล้วกู้คืนไม่ได้'))return;
+  const {error}=await sb.rpc('core_hk_delete_point',{p_emp:me.id,p_point:pid});
+  if(error){toast('ลบไม่สำเร็จ');return;}
+  closeModal();toast('ลบจุดแล้ว');loadManage();
+}
+
+/* ---- จัดการพื้นที่ ---- */
+function openAddArea(){
+  const opts=buildingsCache.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>เพิ่มพื้นที่ใหม่</h3>
+    ${buildingsCache.length?`<div class="row"><label>อาคาร</label><select class="in" id="aBuild">${opts}</select></div>`:''}
+    <div class="row"><label>ชื่อพื้นที่</label><input class="in" id="aName" placeholder="เช่น ห้องน้ำล็อบบี้"></div>
+    <button class="save" onclick="saveAddArea()">เพิ่มพื้นที่</button>
+    <button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function saveAddArea(){
+  const name=$('aName').value.trim();if(!name){toast('ใส่ชื่อพื้นที่ก่อน');return;}
+  const bEl=$('aBuild'); const bld=bEl?parseInt(bEl.value):null;
+  const {error}=await sb.rpc('core_hk_add_area',{p_emp:me.id,p_building:bld,p_name:name});
+  if(error){toast('เพิ่มไม่สำเร็จ');return;}
+  closeModal();toast('เพิ่มพื้นที่แล้ว');loadManage();
+}
+function openEditArea(a){
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>แก้ไขพื้นที่</h3>
+    <div class="row"><label>ชื่อพื้นที่</label><input class="in" id="aName" value="${esc(a.name)}"></div>
+    <label class="togg"><input type="checkbox" id="aActive" ${a.active?'checked':''}> เปิดใช้งาน</label>
+    <button class="save" onclick="saveEditArea(${a.id})">บันทึก</button>
+    <button class="ghost" style="color:var(--danger)" onclick="deleteArea(${a.id})">ลบพื้นที่นี้ (พร้อมจุดข้างใน)</button>
+    <button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function saveEditArea(id){
+  const {error}=await sb.rpc('core_hk_update_area',{p_emp:me.id,p_area:id,p_name:$('aName').value.trim(),p_active:$('aActive').checked});
+  if(error){toast('บันทึกไม่สำเร็จ');return;}
+  closeModal();toast('บันทึกแล้ว');loadManage();
+}
+async function deleteArea(id){
+  if(!confirm('ลบพื้นที่นี้และจุดตรวจทั้งหมดข้างใน? ลบแล้วกู้คืนไม่ได้'))return;
+  const {error}=await sb.rpc('core_hk_delete_area',{p_emp:me.id,p_area:id});
+  if(error){toast('ลบไม่สำเร็จ');return;}
+  closeModal();toast('ลบพื้นที่แล้ว');loadManage();
+}
+async function saveEdit(pid){
+  const freq=$('mFreq').value, due=freq==='monthly'?parseInt($('mDue').value||'1'):null;
+  const {error}=await sb.rpc('core_hk_update_point',{p_emp:me.id,p_point:pid,p_name:$('mName').value.trim(),
+    p_freq:freq,p_due:due,p_photo:$('mPhoto').checked,p_active:$('mActive').checked});
+  if(error){toast('บันทึกไม่สำเร็จ');return;}
+  closeModal();toast('บันทึกแล้ว');loadManage();
+}
+function closeModal(){$('modal').innerHTML='';}
+
+async function pollNotify(){try{const {data}=await sb.rpc('core_notify_hk',{p_emp:me.id});const b=$('bellBadge');if(b){b.textContent=data||0;b.classList.toggle('on',(data||0)>0);}}catch(e){}}
+function goNotify(){if(typeof tab==='function')tab('review');}
+setInterval(()=>{if(me)pollNotify();},30000);
+function bigPic(u){const d=document.createElement('div');
+  d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px';
+  d.innerHTML='<img src="'+u+'" style="max-width:100%;max-height:100%;border-radius:12px">';
+  d.onclick=()=>d.remove();document.body.appendChild(d);}
+async function logout(){await sb.auth.signOut();try{sessionStorage.removeItem('ryc_staff');}catch(e){}me=null;sel=null;pin='';$('app').classList.add('hidden');$('login').classList.remove('hidden');backPick();}
+
+/* ===== มอบหมายพื้นที่ ===== */
+async function openAssign(){
+  const {data}=await sb.from('core_staff_directory').select('*').order('full_name_th');
+  const staff=data||[];
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>มอบหมายพื้นที่</h3><p style="color:var(--muted);font-size:13px;margin:0 0 12px">เลือกพนักงาน แล้วติ๊กพื้นที่ที่รับผิดชอบ — ถ้าไม่ติ๊กเลย พนักงานคนนั้นจะเห็นทุกพื้นที่</p>
+    <div class="row"><select class="in" id="asStaff" onchange="loadAssign()"><option value="">— เลือกพนักงาน —</option>${staff.map(s=>`<option value="${s.id}">${esc(s.nickname||s.full_name_th)}</option>`).join('')}</select></div>
+    <div id="asAreas"></div>
+    <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
+}
+async function loadAssign(){
+  const target=$('asStaff').value;if(!target){$('asAreas').innerHTML='';return;}
+  const {data}=await sb.rpc('core_hk_assign_get',{p_target:target});
+  const set=new Set((data||[]).map(x=>x.area_id));
+  $('asAreas').innerHTML=areasCache.filter(a=>a.active).map(a=>`<label class="togg" style="margin-bottom:8px"><input type="checkbox" ${set.has(a.id)?'checked':''} onchange="toggleAssign('${target}',${a.id},this.checked)"> ${esc(a.name)}</label>`).join('')||'<div style="color:var(--muted);font-size:14px">ยังไม่มีพื้นที่</div>';
+}
+async function toggleAssign(target,area,on){
+  const {error}=await sb.rpc('core_hk_assign_set',{p_emp:me.id,p_target:target,p_area:area,p_on:on});
+  if(error)toast(error.message||'ไม่สำเร็จ'); else toast('บันทึกแล้ว');
+}
+
+/* ===== SSO: รับ session เจ้าของจาก Platform ===== */
+async function enterAsAuth(user){
+  const {data:emp}=await sb.from('core_employees').select('id,full_name_th,nickname').eq('auth_user_id',user.id).maybeSingle();
+  if(!emp)return false;
+  const {data:grants}=await sb.from('core_access_grants').select('module_key, role:core_roles(level)').eq('employee_id',emp.id);
+  const isHead=(grants||[]).some(g=>{const lvl=g.role?g.role.level:0;return lvl>=50&&(g.module_key==='housekeeping'||g.module_key===null);});
+  me={id:emp.id,name:emp.nickname||emp.full_name_th,isHead};
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');
+  $('hello').textContent='สวัสดี '+me.name;
+  $('tabDash').classList.toggle('hidden',!isHead);$('tabReview').classList.toggle('hidden',!isHead);$('tabManage').classList.toggle('hidden',!isHead);
+  tab(isHead?'dash':'today');
+  return true;
+}
+async function boot(){const {data}=await sb.auth.getSession();if(data&&data.session){if(await enterAsAuth(data.session.user))return;}
+  try{const st=JSON.parse(sessionStorage.getItem('ryc_staff')||'null');if(st&&st.id){if(await enterAsStaff(st.id))return;}}catch(e){}
+  loadStaff();}
+boot();
+</script>
+</body>
+</html>

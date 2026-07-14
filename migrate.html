@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ย้ายสินค้า POS · Royal Creek</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#123a2a;--green-2:#1b5e3f;--gold:#c9a24b;--cream:#f6f4ee;--card:#fff;
+    --ink:#20261f;--muted:#6b7268;--line:#e2ddcf;--danger:#a3352d;--ok:#1b7a4a;--tap:52px}
+  *{box-sizing:border-box}body{margin:0;font-family:'Sarabun',system-ui,sans-serif;background:var(--cream);color:var(--ink);font-size:16px;line-height:1.5}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select,textarea{font-family:inherit;font-size:inherit}
+  .hidden{display:none!important}
+  .crest{width:42px;height:42px;border-radius:11px;background:var(--green);display:flex;align-items:center;justify-content:center;border:1.5px solid var(--gold);color:var(--gold);font-weight:700}
+  .topbar{background:var(--green);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px}
+  .topbar h1{margin:0;font-size:16px}.logout{margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:7px 11px;color:#fff;font-weight:600;font-size:13px}
+  .wrap{max-width:640px;margin:0 auto;padding:18px 16px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .card h3{margin:0 0 4px;font-size:16px}.card .cap{margin:0 0 14px;font-size:13px;color:var(--muted)}
+  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .in{width:100%;height:var(--tap);border:1.5px solid var(--line);border-radius:11px;padding:0 13px;background:#fbfaf5;margin-bottom:14px}
+  textarea.in{height:150px;padding:11px 13px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical}
+  .in:focus{outline:none;border-color:var(--green-2);background:#fff}
+  .btn{width:100%;height:var(--tap);border-radius:11px;background:var(--green-2);color:#fff;font-weight:700}
+  .btn:active{transform:translateY(1px)}.btn:disabled{opacity:.5}
+  .btn.g{background:#eef5f0;color:var(--green-2)}
+  .step{display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--green-2);color:#fff;font-size:13px;text-align:center;line-height:22px;margin-right:8px;font-weight:700}
+  .msg{margin-top:10px;font-size:14px;min-height:18px}.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
+  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(120% 90% at 50% -10%,#16482f,var(--green) 55%,#0d2b1f)}
+  .lcard{width:100%;max-width:400px;background:#fff;border-radius:20px;padding:26px 22px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.brand h1{margin:0;font-size:18px}.brand p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600}
+  .prog{height:10px;background:#eceadf;border-radius:6px;overflow:hidden;margin:10px 0}
+  .prog>i{display:block;height:100%;background:var(--green-2);width:0;transition:.2s}
+  .stat{display:flex;gap:10px;margin-top:12px}
+  .stat div{flex:1;background:#fbfaf5;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+  .stat b{display:block;font-size:20px}.stat span{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="lcard">
+    <div class="brand"><div class="crest">RC</div><div><h1>ย้ายสินค้า POS</h1><p>สำหรับเจ้าของ / ผู้จัดการ</p></div></div>
+    <label>ชื่อผู้ใช้</label><input id="u" class="in" placeholder="richard">
+    <label>รหัสผ่าน</label><input id="p" class="in" type="password" placeholder="••••••••">
+    <button id="lbtn" class="btn" onclick="login()">เข้าสู่ระบบ</button>
+    <div id="lmsg" class="msg"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="topbar"><div class="crest">RC</div><h1>ย้ายสินค้า POS</h1><button class="logout" onclick="logout()">ออก</button></div>
+  <div class="wrap">
+
+    <div class="card">
+      <h3><span class="step">1</span>เลือกสาขาปลายทาง</h3>
+      <p class="cap">สินค้าจาก Firebase นี้จะถูกย้ายเข้าเป็นสต็อกของสาขาที่เลือก</p>
+      <select id="venue" class="in" style="margin-bottom:0"></select>
+    </div>
+
+    <div class="card">
+      <h3><span class="step">2</span>เชื่อม Firebase แล้วอ่านสินค้า</h3>
+      <p class="cap">วาง Firebase config ของโปรเจกต์ร้านนี้ (จาก Firebase Console → Project settings → SDK config) วางเฉพาะส่วน { ... }</p>
+      <textarea id="cfg" class="in" placeholder='{&#10;  apiKey: "...",&#10;  authDomain: "...",&#10;  projectId: "...",&#10;  ...&#10;}'></textarea>
+      <label style="margin-top:4px">เส้นทางสินค้าใน Firebase</label>
+      <select id="path" class="in" style="margin-bottom:8px" onchange="document.getElementById('pathCustom').classList.toggle('hidden', this.value!=='__custom')">
+        <option value="products">products (ราก) — สำหรับ KIOSK 1</option>
+        <option value="stores/K7/products">stores/K7/products — สำหรับ K7</option>
+        <option value="stores/KIOSK15/products">stores/KIOSK15/products — สำหรับ K15</option>
+        <option value="__custom">อื่นๆ (พิมพ์เอง)…</option>
+      </select>
+      <input id="pathCustom" class="in hidden" placeholder="เช่น stores/RC/products">
+      <button id="readBtn" class="btn g" onclick="readFirebase()">อ่านสินค้าจาก Firebase</button>
+      <div id="readMsg" class="msg"></div>
+      <div id="preview"></div>
+    </div>
+
+    <div id="step3" class="card hidden">
+      <h3><span class="step">3</span>ย้ายเข้า Supabase</h3>
+      <p class="cap">ย้ายเข้าบัญชีสินค้ากลาง สินค้าชื่อซ้ำกับร้านอื่นจะถูกรวมเป็นตัวเดียว (สต็อกแยกร้าน)</p>
+      <button id="impBtn" class="btn" onclick="doImport()">เริ่มย้าย <span id="cnt"></span> รายการ</button>
+      <div class="prog hidden" id="progWrap"><i id="progBar"></i></div>
+      <div id="impMsg" class="msg"></div>
+      <div class="stat hidden" id="stat">
+        <div><b id="sNew">0</b><span>สร้างใหม่</span></div>
+        <div><b id="sMerge">0</b><span>รวมกับที่มี</span></div>
+        <div><b id="sErr">0</b><span>ผิดพลาด</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const CONFIG={
+  SUPABASE_URL:'https://ewfwvykelkamdfsnprwo.supabase.co',
+  SUPABASE_ANON_KEY:'sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk',
+  INTERNAL_DOMAIN:'royalcreek.local'
+};
+const sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+const $=id=>document.getElementById(id);
+let items=[];
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function setMsg(el,t,k){el.textContent=t||'';el.className='msg'+(k?' '+k:'');}
+
+/* ===== LOGIN ===== */
+async function login(){
+  const u=$('u').value.trim().toLowerCase(),p=$('p').value;
+  if(!u||!p){setMsg($('lmsg'),'กรอกให้ครบ','err');return;}
+  const email=u.includes('@')?u:u+'@'+CONFIG.INTERNAL_DOMAIN;
+  $('lbtn').disabled=true;setMsg($('lmsg'),'กำลังเข้าสู่ระบบ…');
+  const {error}=await sb.auth.signInWithPassword({email,password:p});
+  $('lbtn').disabled=false;
+  if(error){setMsg($('lmsg'),'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง','err');return;}
+  const {data:mgr}=await sb.rpc('core_is_manager');
+  if(!mgr){setMsg($('lmsg'),'บัญชีนี้ไม่มีสิทธิ์','err');await sb.auth.signOut();return;}
+  enter();
+}
+async function enter(){
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');
+  const {data}=await sb.from('core_venues').select('code,name_th').eq('venue_type','convenience').order('sort_order');
+  $('venue').innerHTML=(data||[]).map(v=>`<option value="${v.code}">${esc(v.name_th)} (${v.code})</option>`).join('');
+}
+async function logout(){await sb.auth.signOut();location.reload();}
+
+/* ===== READ FIREBASE ===== */
+async function readFirebase(){
+  setMsg($('readMsg'),'');$('preview').innerHTML='';$('step3').classList.add('hidden');
+  let cfg;
+  try{ cfg=(new Function('return ('+$('cfg').value.trim()+')'))(); }
+  catch(e){ setMsg($('readMsg'),'อ่าน config ไม่ได้ — วางเฉพาะส่วน { ... } ให้ครบ','err');return; }
+  if(!cfg||!cfg.projectId){ setMsg($('readMsg'),'config ไม่ถูกต้อง (ไม่พบ projectId)','err');return; }
+
+  $('readBtn').disabled=true;setMsg($('readMsg'),'กำลังเชื่อม Firebase…');
+  try{
+    const name='mig_'+Date.now();
+    const app=firebase.initializeApp(cfg,name);
+    const db=firebase.firestore(app);
+    const sel=$('path').value;
+    const path=sel==='__custom'?($('pathCustom').value||'').trim():sel;
+    if(!path){$('readBtn').disabled=false;setMsg($('readMsg'),'ระบุเส้นทางสินค้าก่อน','err');await app.delete();return;}
+    const snap=await db.collection(path).get();
+    let ordField=null;
+    items=snap.docs.map((d,i)=>{const x=d.data();
+      let ord=null;
+      for(const f of ['sortOrder','order','seq','position','index','sort']){
+        if(typeof x[f]==='number'){ord=x[f];if(!ordField)ordField=f;break;}
+      }
+      return {name:x.name,emoji:x.emoji,price:Number(x.price)||0,stock:Number(x.stock)||0,_ord:(ord!==null?ord:i)};})
+      .filter(x=>x.name && String(x.name).trim());
+    items.sort((a,b)=>a._ord-b._ord);
+    window._ordField=ordField;
+    await app.delete();
+  }catch(e){
+    $('readBtn').disabled=false;
+    setMsg($('readMsg'),'อ่านไม่สำเร็จ: '+(e.message||e)+' (เช็ก config หรือกฎ Firestore ให้อ่านได้)','err');
+    return;
+  }
+  $('readBtn').disabled=false;
+  if(!items.length){setMsg($('readMsg'),'ไม่พบสินค้าใน collection "products"','err');return;}
+  setMsg($('readMsg'),'พบสินค้า '+items.length+' รายการ','ok');
+
+  const rows=items.slice(0,20).map(x=>`<tr><td>${esc(x.emoji||'')} ${esc(x.name)}</td><td>฿${x.price}</td><td>${x.stock}</td></tr>`).join('');
+  $('preview').innerHTML=`<table><tr><th>สินค้า</th><th>ราคา</th><th>สต็อก</th></tr>${rows}</table>
+    ${items.length>20?`<p class="cap" style="margin-top:8px">แสดง 20 จาก ${items.length} รายการ</p>`:''}
+    <p class="cap" style="margin-top:6px">ลำดับที่อ่านได้: ${window._ordField?('ตาม field "'+window._ordField+'"'):'ตามลำดับเอกสารใน Firebase'}</p>
+    <button class="btn" style="margin-top:8px;background:#eef5f0;color:#1b5e3f" onclick="syncSort()">🔃 ซิงค์ลำดับสินค้าเข้าโปรแกรม (ไม่แตะสต็อก/ราคา)</button>
+    <div id="sortMsg" class="cap" style="margin-top:6px"></div>`;
+  $('cnt').textContent=items.length;
+  $('step3').classList.remove('hidden');
+}
+
+/* ===== ซิงค์ลำดับสินค้า ===== */
+async function syncSort(){
+  if(!items.length)return;
+  $('sortMsg').textContent='กำลังซิงค์ลำดับ…';
+  const pairs=items.map((x,i)=>({n:x.name,s:i+1}));
+  const {data,error}=await sb.rpc('core_pos_set_sort',{p_pairs:pairs});
+  if(error){$('sortMsg').textContent='ไม่สำเร็จ: '+(error.message||'');return;}
+  $('sortMsg').textContent='ซิงค์ลำดับแล้ว '+data+' รายการ ✓ (หน้าขาย/สต็อกทุกร้านจะเรียงตามนี้)';
+}
+
+/* ===== IMPORT ===== */
+async function doImport(){
+  if(!items.length)return;
+  const venue=$('venue').value;
+  $('impBtn').disabled=true;$('progWrap').classList.remove('hidden');$('stat').classList.remove('hidden');
+  let nNew=0,nMerge=0,nErr=0;
+  for(let i=0;i<items.length;i++){
+    const x=items[i];
+    try{
+      const {data,error}=await sb.rpc('core_pos_import_product',
+        {p_venue:venue,p_name:x.name,p_emoji:x.emoji||null,p_price:x.price,p_stock:x.stock,p_track:true});
+      if(error) nErr++;
+      else if(data==='created') nNew++;
+      else if(data==='merged') nMerge++;
+    }catch(e){ nErr++; }
+    $('sNew').textContent=nNew;$('sMerge').textContent=nMerge;$('sErr').textContent=nErr;
+    $('progBar').style.width=Math.round((i+1)/items.length*100)+'%';
+  }
+  $('impBtn').disabled=false;
+  setMsg($('impMsg'),'ย้ายเสร็จ! สร้างใหม่ '+nNew+' · รวม '+nMerge+' · ผิดพลาด '+nErr,nErr?'err':'ok');
+}
+
+(async function(){const {data}=await sb.auth.getSession();if(data&&data.session){const {data:m}=await sb.rpc('core_is_manager');if(m)enter();}})();
+$('p').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
+</script>
+</body>
+</html>

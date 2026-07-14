@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>จัดการ POS · Royal Creek</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#123a2a;--green-2:#1b5e3f;--gold:#c9a24b;--gold-soft:#e6d29a;--cream:#f6f4ee;
+    --card:#fff;--ink:#20261f;--muted:#6b7268;--line:#e2ddcf;--danger:#a3352d;--ok:#1b7a4a;--tap:50px}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:'Sarabun',system-ui,sans-serif;color:var(--ink);background:var(--cream);font-size:16px;line-height:1.45}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit;font-size:inherit}
+  .hidden{display:none!important}
+  .crest{width:40px;height:40px;border-radius:11px;background:var(--green);display:flex;align-items:center;justify-content:center;border:1.5px solid var(--gold);color:var(--gold);font-weight:700;font-size:14px;flex:none}
+
+  .center{min-height:100%;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(120% 90% at 50% -10%,#16482f,var(--green) 55%,#0d2b1f)}
+  .lcard{width:100%;max-width:400px;background:#fff;border-radius:20px;padding:26px 22px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.brand h1{margin:0;font-size:18px}.brand p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .in{width:100%;height:var(--tap);border:1.5px solid var(--line);border-radius:11px;padding:0 13px;background:#fbfaf5;margin-bottom:14px}
+  .in:focus{outline:none;border-color:var(--green-2);background:#fff}
+  .btn{width:100%;height:var(--tap);border-radius:11px;background:var(--green-2);color:#fff;font-weight:700}
+  .btn:disabled{opacity:.5}
+  .vbtn{width:100%;padding:15px;border:1.5px solid var(--line);border-radius:13px;background:#fbfaf5;text-align:left;margin-bottom:10px;font-weight:600}
+  .msg{margin-top:10px;text-align:center;font-size:14px;min-height:18px;color:var(--danger)}
+
+  .top{background:var(--green);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+  .top h1{margin:0;font-size:15px}.top .sub{font-size:12px;color:var(--gold-soft)}
+  .top .sp{margin-left:auto;display:flex;gap:8px}.top button.t{border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:7px 10px;color:#fff;font-weight:600;font-size:13px}
+  .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:52px;z-index:4}
+  .tabs button{flex:1;padding:13px;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent}
+  .tabs button.on{color:var(--green-2);border-bottom-color:var(--green-2)}
+  .wrap{max-width:760px;margin:0 auto;padding:14px 14px 40px}
+
+  .addbtn{width:100%;height:48px;border-radius:12px;border:1.5px dashed var(--gold);color:#8a6d1f;font-weight:700;margin-bottom:14px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+  .chip{padding:7px 13px;border:1.5px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;font-weight:600}
+  .chip.on{border-color:var(--green-2);background:#eef5f0;color:var(--green-2)}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+  .row .em{font-size:24px}.row .nm{flex:1;min-width:0}.row .nm b{font-weight:600}.row .nm small{color:var(--muted);display:block;font-size:12px}
+  .row .pr{font-weight:700;color:var(--green-2);white-space:nowrap}
+  .qbadge{min-width:44px;text-align:center;font-weight:700;padding:4px 8px;border-radius:9px;background:#eef5f0;color:var(--green-2)}
+  .qbadge.low{background:#faece9;color:var(--danger)}
+  .mini{border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:13px;font-weight:600;color:var(--green-2)}
+
+  .ov{position:fixed;inset:0;background:rgba(20,25,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+  .sheet{background:var(--card);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:20px;max-height:90vh;overflow:auto}
+  .sheet h3{margin:0 0 14px}
+  .f label{margin-bottom:6px}.f{margin-bottom:12px}
+  .save{width:100%;height:50px;border-radius:12px;background:var(--green-2);color:#fff;font-weight:700;margin-top:6px}
+  .ghost{width:100%;height:44px;border-radius:12px;color:var(--muted);font-weight:600;margin-top:8px}
+  .g2{display:flex;gap:10px}.g2>*{flex:1}
+  .seg{display:flex;gap:8px;margin-bottom:12px}.seg button{flex:1;height:44px;border:1.5px solid var(--line);border-radius:10px;background:#fbfaf5;font-weight:600}
+  .seg button.on{border-color:var(--green-2);background:#eef5f0;color:var(--green-2)}
+  .togg{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid var(--line);border-radius:11px;background:#fbfaf5;margin-bottom:12px}.togg input{width:20px;height:20px}
+  .mv{display:flex;gap:10px;font-size:13px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .mv .k{font-weight:600;min-width:52px}.mv .d{margin-left:auto;font-weight:600}
+  .mv .d.pos{color:var(--ok)}.mv .d.neg{color:var(--danger)}
+  .sec-h{font-weight:700;font-size:14px;margin:18px 2px 10px}
+  .empty{text-align:center;color:var(--muted);padding:36px 20px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:11px;font-size:14px;opacity:0;transition:.25s;z-index:40}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="login" class="center">
+  <div class="lcard">
+    <div class="brand"><div class="crest">RC</div><div><h1>จัดการ POS</h1><p>สำหรับเจ้าของ / ผู้จัดการ</p></div></div>
+    <label>ชื่อผู้ใช้</label><input id="u" class="in" placeholder="richard">
+    <label>รหัสผ่าน</label><input id="p" class="in" type="password">
+    <button id="lbtn" class="btn" onclick="login()">เข้าสู่ระบบ</button>
+    <div id="lmsg" class="msg"></div>
+  </div>
+</div>
+
+<div id="venuePick" class="center hidden">
+  <div class="lcard"><div class="brand"><div class="crest">RC</div><div><h1>เลือกร้าน</h1><p>เลือกสาขาที่จะจัดการ</p></div></div>
+    <div id="venueBtns"></div></div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="top"><div class="crest">RC</div>
+    <div><h1 id="vName">—</h1><div class="sub" id="who"></div></div>
+    <div class="sp"><button class="t" id="switchBtn" onclick="toVenuePick()">เปลี่ยนร้าน</button><button class="t" onclick="logout()">ออก</button></div></div>
+  <div class="tabs">
+    <button id="tabProd" class="on" onclick="tab('prod')">สินค้า</button>
+    <button id="tabStock" onclick="tab('stock')">สต็อก</button>
+  </div>
+  <div class="wrap">
+    <div id="viewProd"></div>
+    <div id="viewStock" class="hidden"></div>
+  </div>
+</div>
+
+<div id="modal"></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const CONFIG={SUPABASE_URL:'https://ewfwvykelkamdfsnprwo.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk',INTERNAL_DOMAIN:'royalcreek.local'};
+const sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+const $=id=>document.getElementById(id);
+let venuesAllowed=[],venue=null,cats=[],prods=[],stock=[],catFilter=null,curTab='prod';
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function baht(n){return '฿'+Number(n||0).toLocaleString('th-TH');}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1900);}
+function catName(id){const c=cats.find(x=>x.id===id);return c?c.name_th:'ไม่มีหมวด';}
+
+/* ===== LOGIN ===== */
+async function login(){
+  const u=$('u').value.trim().toLowerCase(),p=$('p').value;
+  if(!u||!p){$('lmsg').textContent='กรอกให้ครบ';return;}
+  const email=u.includes('@')?u:u+'@'+CONFIG.INTERNAL_DOMAIN;
+  $('lbtn').disabled=true;$('lmsg').textContent='กำลังเข้าสู่ระบบ…';
+  const {error}=await sb.auth.signInWithPassword({email,password:p});
+  $('lbtn').disabled=false;
+  if(error){$('lmsg').textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';return;}
+  const {data:mgr}=await sb.rpc('core_is_manager');
+  if(!mgr){$('lmsg').textContent='บัญชีนี้ไม่มีสิทธิ์';await sb.auth.signOut();return;}
+  await afterLogin();
+}
+async function afterLogin(){
+  const {data}=await sb.from('core_venues').select('code,name_th').eq('venue_type','convenience').order('sort_order');
+  venuesAllowed=data||[];
+  $('login').classList.add('hidden');
+  if(venuesAllowed.length===1){venue=venuesAllowed[0];start();}else toVenuePick();
+}
+function toVenuePick(){
+  $('app').classList.add('hidden');$('venuePick').classList.remove('hidden');
+  $('venueBtns').innerHTML=venuesAllowed.map(v=>`<button class="vbtn" onclick='chooseV("${v.code}")'>${esc(v.name_th)} (${v.code})</button>`).join('');
+}
+function chooseV(code){venue=venuesAllowed.find(v=>v.code===code);$('venuePick').classList.add('hidden');start();}
+async function logout(){await sb.auth.signOut();location.reload();}
+
+/* ===== LOAD ===== */
+async function start(){
+  $('venuePick').classList.add('hidden');$('app').classList.remove('hidden');
+  $('vName').textContent='จัดการ · '+venue.name_th;
+  $('switchBtn').classList.toggle('hidden',venuesAllowed.length<2);
+  await reload();tab('prod');
+}
+async function reload(){
+  const [c,p,s]=await Promise.all([
+    sb.from('core_pos_categories').select('*').order('sort_order'),
+    sb.from('core_pos_products').select('*').order('name_th'),
+    sb.rpc('core_pos_products_for_venue',{p_venue:venue.code})
+  ]);
+  cats=c.data||[];prods=p.data||[];stock=s.data||[];
+}
+function tab(t){
+  curTab=t;
+  $('tabProd').classList.toggle('on',t==='prod');$('tabStock').classList.toggle('on',t==='stock');
+  $('viewProd').classList.toggle('hidden',t!=='prod');$('viewStock').classList.toggle('hidden',t!=='stock');
+  if(t==='prod')renderProd(); else renderStock();
+}
+function rerender(){ if(curTab==='prod')renderProd(); else renderStock(); }
+
+/* ===== TAB สินค้า ===== */
+function renderProd(){
+  const chips=`<div class="chips">
+    <button class="chip ${catFilter===null?'on':''}" onclick="setCat(null)">ทั้งหมด</button>
+    ${cats.map(c=>`<button class="chip ${catFilter===c.id?'on':''}" onclick="setCat(${c.id})">${esc(c.name_th)}</button>`).join('')}
+    <button class="chip" onclick="openCats()">＋ หมวด</button></div>`;
+  const list=prods.filter(p=>catFilter===null||p.category_id===catFilter);
+  const rows=list.map(p=>`<div class="row">
+    <span class="em">${esc(p.emoji||'📦')}</span>
+    <div class="nm"><b>${esc(p.name_th)}</b><small>${esc(catName(p.category_id))}${p.track_stock?'':' · ไม่นับสต็อก'}</small></div>
+    <span class="pr">${baht(p.base_price)}</span>
+    <button class="mini" onclick='editProd(${JSON.stringify(p)})'>แก้ไข</button></div>`).join('');
+  $('viewProd').innerHTML=`<button class="addbtn" onclick="addProd()">＋ เพิ่มสินค้า</button>${chips}${rows||'<div class="empty">ยังไม่มีสินค้าในหมวดนี้</div>'}`;
+}
+function setCat(id){catFilter=id;renderProd();}
+
+function prodForm(p){
+  const catOpts='<option value="">ไม่มีหมวด</option>'+cats.map(c=>`<option value="${c.id}" ${p&&p.category_id===c.id?'selected':''}>${esc(c.name_th)}</option>`).join('');
+  return `<div class="f"><label>ชื่อสินค้า</label><input class="in" id="fName" value="${p?esc(p.name_th):''}" placeholder="เช่น โค้ก 325ml"></div>
+    <div class="g2"><div class="f"><label>Emoji</label><input class="in" id="fEmoji" value="${p?esc(p.emoji||''):''}" placeholder="🥤" maxlength="4"></div>
+    <div class="f"><label>ราคาฐาน</label><input class="in" id="fPrice" type="number" inputmode="decimal" value="${p?p.base_price:''}"></div></div>
+    <div class="f"><label>หมวด</label><select class="in" id="fCat">${catOpts}</select></div>
+    <label class="togg"><input type="checkbox" id="fTrack" ${!p||p.track_stock?'checked':''}> นับสต็อก (ปิดสำหรับค่าบริการ)</label>`;
+}
+function addProd(){
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>เพิ่มสินค้า</h3>${prodForm(null)}
+    <div class="f"><label>สต็อกเริ่มต้นที่ ${esc(venue.name_th)}</label><input class="in" id="fQty" type="number" inputmode="numeric" value="0"></div>
+    <button class="save" onclick="saveNewProd()">เพิ่มสินค้า</button><button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function saveNewProd(){
+  const name=$('fName').value.trim();if(!name){toast('ใส่ชื่อก่อน');return;}
+  const {error}=await sb.rpc('core_pos_product_add',{p_name:name,p_emoji:$('fEmoji').value.trim(),
+    p_cat:$('fCat').value?Number($('fCat').value):null,p_price:Number($('fPrice').value)||0,
+    p_track:$('fTrack').checked,p_venue:venue.code,p_qty:Number($('fQty').value)||0});
+  if(error){toast('เพิ่มไม่สำเร็จ');return;}
+  closeModal();toast('เพิ่มสินค้าแล้ว');await reload();renderProd();
+}
+function editProd(p){
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>แก้ไขสินค้า</h3>${prodForm(p)}
+    <label class="togg"><input type="checkbox" id="fActive" ${p.active?'checked':''}> เปิดขาย</label>
+    <button class="save" onclick="saveEditProd(${p.id})">บันทึก</button>
+    <button class="ghost" style="color:var(--danger)" onclick="delProd(${p.id})">ลบสินค้านี้ถาวร</button>
+    <button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function saveEditProd(id){
+  const {error}=await sb.rpc('core_pos_product_update',{p_id:id,p_name:$('fName').value.trim(),
+    p_emoji:$('fEmoji').value.trim()||null,p_cat:$('fCat').value?Number($('fCat').value):null,
+    p_price:Number($('fPrice').value)||0,p_track:$('fTrack').checked,p_active:$('fActive').checked});
+  if(error){toast('บันทึกไม่สำเร็จ');return;}
+  closeModal();toast('บันทึกแล้ว');await reload();renderProd();
+}
+async function delProd(id){
+  if(!confirm('ลบสินค้านี้ถาวร (ทุกร้าน)? ลบแล้วกู้คืนไม่ได้'))return;
+  const {error}=await sb.rpc('core_pos_product_delete',{p_id:id});
+  if(error){toast('ลบไม่สำเร็จ');return;}
+  closeModal();toast('ลบแล้ว');await reload();renderProd();
+}
+
+/* ---- หมวด ---- */
+function openCats(){
+  const rows=cats.map(c=>`<div class="row"><div class="nm"><b>${esc(c.name_th)}</b></div>
+    <button class="mini" onclick="renameCat(${c.id},'${esc(c.name_th)}')">แก้</button>
+    <button class="mini" style="color:var(--danger)" onclick="delCat(${c.id})">ลบ</button></div>`).join('');
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>จัดการหมวด</h3><div class="f"><input class="in" id="newCat" placeholder="ชื่อหมวดใหม่"></div>
+    <button class="save" onclick="addCatDo()">＋ เพิ่มหมวด</button>
+    <div class="sec-h">หมวดทั้งหมด</div>${rows||'<div class="empty">ยังไม่มีหมวด</div>'}
+    <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
+}
+async function addCatDo(){const n=$('newCat').value.trim();if(!n){toast('ใส่ชื่อหมวด');return;}
+  const {error}=await sb.rpc('core_pos_cat_add',{p_name:n});if(error){toast('เพิ่มไม่สำเร็จ');return;}
+  await reload();openCats();toast('เพิ่มหมวดแล้ว');}
+async function renameCat(id,old){const n=prompt('เปลี่ยนชื่อหมวด',old);if(n==null)return;
+  const {error}=await sb.rpc('core_pos_cat_update',{p_id:id,p_name:n.trim(),p_active:null});if(error){toast('ไม่สำเร็จ');return;}
+  await reload();openCats();}
+async function delCat(id){if(!confirm('ลบหมวดนี้? สินค้าในหมวดจะกลายเป็นไม่มีหมวด'))return;
+  const {error}=await sb.rpc('core_pos_cat_delete',{p_id:id});if(error){toast('ลบไม่สำเร็จ');return;}
+  await reload();openCats();catFilter=null;}
+
+/* ===== TAB สต็อก ===== */
+function renderStock(){
+  const rows=stock.map(s=>{
+    const low=s.track_stock&&s.qty<=3;
+    return `<div class="row"><span class="em">${esc(s.emoji||'📦')}</span>
+      <div class="nm"><b>${esc(s.name_th)}</b><small>${baht(s.price)}${s.price_override!=null?' · ราคาเฉพาะร้าน':''}</small></div>
+      <span class="qbadge ${low?'low':''}">${s.track_stock?s.qty:'∞'}</span>
+      <button class="mini" onclick='stockSheet(${JSON.stringify({id:s.product_id,name:s.name_th,qty:s.qty,ovr:s.price_override,track:s.track_stock})})'>จัดการ</button></div>`;
+  }).join('');
+  $('viewStock').innerHTML=`${rows||'<div class="empty">ร้านนี้ยังไม่มีสินค้า</div>'}
+    <div class="sec-h">ประวัติการเคลื่อนไหวล่าสุด</div><div id="moves"><div class="empty">กำลังโหลด…</div></div>`;
+  loadMoves();
+}
+async function loadMoves(){
+  const {data}=await sb.rpc('core_pos_movements_list',{p_venue:venue.code,p_limit:40});
+  const kindTh={init:'สร้าง',restock:'เติม',adjust:'ปรับ',damage:'ของเสีย'};
+  $('moves').innerHTML=(data&&data.length)?data.map(m=>{
+    const dt=new Date(m.created_at);const pos=Number(m.delta)>=0;
+    return `<div class="mv"><span class="k">${kindTh[m.kind]||m.kind}</span>
+      <span>${esc(m.name_th)}<br><small style="color:var(--muted)">${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}${m.reason?' · '+esc(m.reason):''}</small></span>
+      <span class="d ${pos?'pos':'neg'}">${pos?'+':''}${m.delta} → ${m.qty_after}</span></div>`;
+  }).join(''):'<div class="empty">ยังไม่มีการเคลื่อนไหว</div>';
+}
+function stockSheet(p){
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>${esc(p.name)}</h3>
+    ${p.track?`<div class="seg"><button class="on" id="mRe" onclick="setMode('re')">เติมสต็อก</button><button id="mSet" onclick="setMode('set')">ตั้งค่าสต็อก</button></div>
+    <div class="f" id="reBox"><label>จำนวนที่เติม (สต็อกตอนนี้ ${p.qty})</label><input class="in" id="mQty" type="number" inputmode="numeric" placeholder="เช่น 24"></div>
+    <div class="f"><label>หมายเหตุ (ถ้ามี)</label><input class="in" id="mReason" placeholder="เช่น รับของจากซัพ"></div>
+    <button class="save" id="mSave" onclick="doStock(${p.id},'re')">เติมสต็อก</button>`:'<p style="color:var(--muted)">สินค้านี้ตั้งเป็น “ไม่นับสต็อก”</p>'}
+    <div class="sec-h">ราคาเฉพาะร้านนี้ (override)</div>
+    <div class="g2"><div class="f"><input class="in" id="mOvr" type="number" inputmode="decimal" value="${p.ovr!=null?p.ovr:''}" placeholder="เว้นว่าง = ใช้ราคาฐาน"></div>
+    <button class="mini" style="height:50px" onclick="doOverride(${p.id})">ตั้งราคา</button></div>
+    <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
+}
+let sMode='re';
+function setMode(m){sMode=m;$('mRe').classList.toggle('on',m==='re');$('mSet').classList.toggle('on',m==='set');
+  $('reBox').querySelector('label').textContent=m==='re'?'จำนวนที่เติม':'ตั้งสต็อกเป็น';
+  $('mSave').textContent=m==='re'?'เติมสต็อก':'ตั้งค่าสต็อก';$('mSave').setAttribute('onclick',`doStock(${$('mSave').getAttribute('onclick').match(/\\d+/)[0]},'${m}')`);}
+async function doStock(id,mode){
+  const q=Number($('mQty').value);if(isNaN(q)){toast('ใส่จำนวน');return;}
+  const reason=$('mReason').value.trim()||null;
+  const rpc=mode==='re'?'core_pos_restock':'core_pos_set_stock';
+  const args=mode==='re'?{p_venue:venue.code,p_product:id,p_delta:q,p_reason:reason}:{p_venue:venue.code,p_product:id,p_qty:q,p_reason:reason};
+  const {error}=await sb.rpc(rpc,args);
+  if(error){toast('ไม่สำเร็จ');return;}
+  closeModal();toast('อัปเดตสต็อกแล้ว');await reload();renderStock();
+}
+async function doOverride(id){
+  const v=$('mOvr').value.trim();
+  const {error}=await sb.rpc('core_pos_set_override',{p_venue:venue.code,p_product:id,p_price:v===''?null:Number(v)});
+  if(error){toast('ไม่สำเร็จ');return;}
+  closeModal();toast('ตั้งราคาแล้ว');await reload();renderStock();
+}
+function closeModal(){$('modal').innerHTML='';}
+
+(async function(){const {data}=await sb.auth.getSession();if(data&&data.session){const {data:m}=await sb.rpc('core_is_manager');if(m)afterLogin();}})();
+$('p').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
+</script>
+</body>
+</html>
