@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>สำรองข้อมูล · Royal Creek</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.7/supabase.min.js"></script>
+<style>
+:root{--green:#1d6b46;--bg:#f4f6f3;--card:#fff;--line:#e3e8e1;--muted:#8a948c;--danger:#c0392b;--ok:#1e8e3e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',system-ui,sans-serif;background:var(--bg);color:#222}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+h2{color:var(--green);margin:12px 0}
+h3{margin:10px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+button{font-family:inherit;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+.emp{padding:14px 6px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:15px}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:260px;margin:12px auto}
+.pad button{padding:16px;font-size:20px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.dots{display:flex;gap:10px;justify-content:center;margin:10px 0}
+.dots span{width:14px;height:14px;border-radius:50%;border:2px solid var(--green)}
+.dots span.on{background:var(--green)}
+.hidden{display:none}
+.big{width:100%;padding:16px;font-size:18px;font-weight:700;color:#fff;background:var(--green);border:none;border-radius:12px}
+.big:disabled{background:var(--muted)}
+.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.row:last-child{border:none}
+.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;width:0;background:var(--green);transition:width .3s}
+.note{font-size:13px;color:var(--muted);line-height:1.6}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.on{opacity:1}
+#status{font-size:14px;margin:8px 0;color:var(--green);font-weight:600}
+a.back{color:var(--muted);font-size:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← กลับหน้าหลัก</a>
+  <h2>🗄️ สำรองข้อมูล</h2>
+
+  <div id="login" class="card">
+    <h3>เลือกชื่อของคุณ</h3>
+    <div class="grid" id="empGrid">กำลังโหลด…</div>
+    <div id="pinBox" class="hidden" style="text-align:center">
+      <h3 id="pinName"></h3>
+      <div class="dots" id="dots"><span></span><span></span><span></span><span></span></div>
+      <div class="pad" id="pad"></div>
+      <button onclick="backList()" style="border:none;background:none;color:var(--muted)">← เลือกชื่อใหม่</button>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="card">
+      <div id="status">พร้อมสำรองข้อมูล</div>
+      <div class="bar"><i id="prog"></i></div>
+      <button class="big" id="goBtn" onclick="runBackup()">📥 สำรองข้อมูลทั้งหมด</button>
+      <p class="note" style="margin-top:10px">
+        กดปุ่มแล้วระบบจะดึงข้อมูลทุกตารางจากฐานข้อมูลมารวมเป็นไฟล์เดียว
+        แล้วดาวน์โหลดลงเครื่องอัตโนมัติ · แนะนำทำ<b>สัปดาห์ละครั้ง</b>
+        แล้วเก็บไฟล์ไว้ที่ปลอดภัย (เช่น Google Drive)<br>
+        ⚠️ ไฟล์นี้ครอบคลุมข้อมูลในตารางทั้งหมด แต่<b>ไม่รวมรูปถ่าย</b>ที่เก็บใน Storage (เช่น รูปลงเวลา)
+      </p>
+    </div>
+    <div class="card">
+      <h3>ตารางในระบบ</h3>
+      <div id="tblList">กำลังโหลด…</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const sb = supabase.createClient('https://ewfwvykelkamdfsnprwo.supabase.co','sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk');
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let sel=null, pin='', me=null, tables=[];
+
+function toast(m){$('toast').textContent=m;$('toast').classList.add('on');setTimeout(()=>$('toast').classList.remove('on'),2500);}
+
+async function loadEmps(){
+  const {data}=await sb.from('core_staff_directory').select('*').order('nickname');
+  $('empGrid').innerHTML=(data||[]).map(e=>`<button class="emp" onclick='pick("${e.id}","${esc(e.nickname||e.full_name_th)}")'>${esc(e.nickname||e.full_name_th)}</button>`).join('')||'ไม่พบพนักงาน';
+}
+function pick(id,name){sel={id,name};pin='';dots();$('pinName').textContent=name;$('pinBox').classList.remove('hidden');$('empGrid').classList.add('hidden');
+  $('pad').innerHTML=[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<span></span>':`<button onclick='key("${d}")'>${d}</button>`).join('');}
+function backList(){$('pinBox').classList.add('hidden');$('empGrid').classList.remove('hidden');}
+function dots(){[...$('dots').children].forEach((s,i)=>s.classList.toggle('on',i<pin.length));}
+async function key(d){
+  if(d==='⌫'){pin=pin.slice(0,-1);dots();return;}
+  if(pin.length>=4)return; pin+=d; dots();
+  if(pin.length===4){
+    const {data,error}=await sb.rpc('core_verify_staff_pin',{emp_id:sel.id,pin});
+    if(error||!data){toast('PIN ไม่ถูกต้อง');pin='';dots();return;}
+    await enter(sel.id,sel.name);
+  }
+}
+async function enter(id,name){
+  me={id,name};
+  const {data:lvl}=await sb.rpc('core_emp_max_level',{p_emp:id,p_module:null,p_venue:null});
+  if((lvl||0)<100){toast('หน้านี้สำหรับเจ้าของระบบเท่านั้น');pin='';dots();return;}
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');
+  loadTables();
+}
+async function loadTables(){
+  const {data,error}=await sb.rpc('core_backup_list',{p_emp:me.id});
+  if(error){$('tblList').textContent='โหลดไม่สำเร็จ: '+error.message;return;}
+  tables=data||[];
+  $('tblList').innerHTML=tables.map(t=>`<div class="row"><span>${esc(t.table)}</span><b>${Number(t.rows).toLocaleString()} แถว</b></div>`).join('')||'ไม่พบตาราง';
+}
+async function runBackup(){
+  if(!tables.length){toast('ยังไม่มีรายชื่อตาราง');return;}
+  const btn=$('goBtn'); btn.disabled=true;
+  const CHUNK=2000;
+  const out={system:'Royal Creek Platform',exported_at:new Date().toISOString(),exported_by:me.name,tables:{}};
+  const totalRows=tables.reduce((s,t)=>s+Number(t.rows),0)||1;
+  let done=0;
+  try{
+    for(const t of tables){
+      const rows=[]; let off=0;
+      $('status').textContent=`กำลังดึง ${t.table} …`;
+      while(true){
+        const {data,error}=await sb.rpc('core_backup_dump',{p_emp:me.id,p_table:t.table,p_limit:CHUNK,p_offset:off});
+        if(error) throw new Error(t.table+': '+error.message);
+        const part=data||[];
+        rows.push(...part);
+        done+=part.length; off+=CHUNK;
+        $('prog').style.width=Math.min(100,Math.round(done/totalRows*100))+'%';
+        if(part.length<CHUNK) break;
+      }
+      out.tables[t.table]=rows;
+    }
+    const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='royalcreek_backup_'+new Date().toISOString().slice(0,10)+'.json';
+    a.click(); URL.revokeObjectURL(a.href);
+    $('prog').style.width='100%';
+    $('status').textContent='✅ สำรองสำเร็จ · ขนาดไฟล์ '+(blob.size/1024/1024).toFixed(2)+' MB';
+    toast('ดาวน์โหลดไฟล์สำรองแล้ว');
+  }catch(e){
+    $('status').textContent='❌ ผิดพลาด: '+e.message;
+    toast('สำรองไม่สำเร็จ');
+  }finally{ btn.disabled=false; }
+}
+async function boot(){
+  try{
+    const st=JSON.parse(sessionStorage.getItem('ryc_staff')||'null');
+    if(st&&st.id){
+      const {data:lvl}=await sb.rpc('core_emp_max_level',{p_emp:st.id,p_module:null,p_venue:null});
+      if((lvl||0)>=100){
+        me={id:st.id,name:st.name};
+        $('login').classList.add('hidden');$('app').classList.remove('hidden');
+        loadTables();return;
+      }
+    }
+  }catch(e){}
+  loadEmps();
+}
+boot();
+</script>
+</body>
+</html>
