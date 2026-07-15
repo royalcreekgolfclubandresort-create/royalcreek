@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Royal Creek Caddy — อ่านใบจอง & เบอร์วิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700;800&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pine:#16380F; --green:#1B7A3E; --green-soft:#E4F0E6;
+  --paper:#F3F5EF; --card:#FFFFFF; --line:#D8DFD3;
+  --ink:#22301F; --mut:#6B7A66;
+  --amber:#B97F0E; --amber-soft:#FBF1DC;
+  --red:#B3362B; --red-soft:#F9E7E4;
+  --r:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Noto Sans Thai',system-ui,sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;padding-bottom:60px}
+header{background:var(--pine);color:#fff;padding:16px 20px 14px}
+header .eyebrow{font-size:11px;letter-spacing:.14em;color:#9DC3A4;font-weight:700;text-transform:uppercase}
+header h1{font-size:20px;font-weight:800;margin-top:2px}
+header .sub{font-size:12.5px;color:#C9DCCB;margin-top:3px}
+main{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.step-tag{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:14.5px;margin-bottom:10px}
+.step-tag .n{background:var(--green);color:#fff;width:24px;height:24px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.hint{font-size:12.5px;color:var(--mut);line-height:1.55}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:none;border-radius:12px;
+  padding:15px;font-family:inherit;font-size:16px;font-weight:800;cursor:pointer;transition:transform .06s}
+.btn:active{transform:scale(.985)}
+.btn-green{background:var(--green);color:#fff}
+.btn-dark{background:var(--pine);color:#fff}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.thumb{position:relative;width:96px;height:128px;border-radius:10px;overflow:hidden;border:1.5px solid var(--line);background:#EEF1EA}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .pg{position:absolute;left:0;bottom:0;background:rgba(22,56,15,.85);color:#fff;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:0 8px 0 0}
+.thumb .rm{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:8px;border:none;background:rgba(179,54,43,.92);color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+.loading{display:none;text-align:center;padding:26px 10px}
+.spin{width:40px;height:40px;border:4px solid var(--green-soft);border-top-color:var(--green);border-radius:50%;margin:0 auto 12px;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.loading .lt{font-weight:700;font-size:14.5px}
+.loading .ls{font-size:12px;color:var(--mut);margin-top:4px}
+
+.sheet{border:1.5px solid var(--pine);border-radius:12px;overflow:hidden;margin-top:4px}
+.sheet-head{background:var(--pine);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.sheet-head .t{font-weight:800;font-size:14.5px}
+.sheet-head .d{font-size:12px;color:#C9DCCB}
+.grp{border-top:1px dashed var(--line);padding:10px 14px}
+.grp:first-of-type{border-top:none}
+.grp-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.grp-time{font-weight:800;font-size:15px;color:var(--pine)}
+.grp-cust{font-weight:600;font-size:14px}
+.grp-meta{font-size:11.5px;color:var(--mut);margin-left:auto}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--green-soft);border:1.2px solid #BBD8C0;border-radius:9px;padding:5px 8px}
+.chip input{border:none;background:transparent;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:14px;color:var(--pine);width:42px;text-align:center;outline:none}
+.chip .nm{font-size:11.5px;color:var(--mut);max-width:86px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .x{border:none;background:none;color:var(--red);font-weight:800;font-size:13px;cursor:pointer;padding:0 2px}
+.chip.dup{background:var(--amber-soft);border-color:#E4C687}
+.chip.alien{background:var(--red-soft);border-color:#E0A49D}
+.chip.lv{background:#EEF0F5;border-color:#C6CCDA}
+.chip.lv input{color:#4A5878}
+.lv-badge{background:#4A5878;color:#fff;font-size:11px;font-weight:800;border-radius:6px;padding:2px 8px}
+.addc{border:1.2px dashed var(--green);background:none;color:var(--green);border-radius:9px;padding:5px 12px;font-family:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.grp-none .chips .none-lb{font-size:12.5px;color:var(--mut);font-style:italic}
+
+.win-box{margin-top:14px;border:1.5px solid var(--green);border-radius:12px;overflow:hidden}
+.win-head{background:var(--green);color:#fff;padding:9px 14px;font-weight:800;font-size:14px;display:flex;justify-content:space-between}
+.win-body{padding:12px 14px;display:flex;gap:7px;flex-wrap:wrap;background:#FBFDF9}
+.wn{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:14.5px;color:var(--pine);
+  background:var(--green-soft);border:1.2px solid #BBD8C0;border-radius:8px;padding:5px 9px}
+.off-line{padding:9px 14px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--mut);background:#FBFDF9}
+.off-line b{color:var(--ink)}
+
+.check{display:flex;gap:10px;align-items:flex-start;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13.5px;line-height:1.55}
+.check.ok{background:var(--green-soft);color:var(--pine)}
+.check.warn{background:var(--amber-soft);color:#7A5407}
+.check.bad{background:var(--red-soft);color:var(--red)}
+.check .ic{font-size:17px;line-height:1.3}
+.check b{font-weight:800}
+.stat-row{display:flex;gap:10px;margin-top:12px}
+.stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stat .v{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:22px;color:var(--pine)}
+.stat .l{font-size:11px;color:var(--mut);margin-top:2px}
+.webhook{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:13px;font-family:inherit;font-size:13.5px;margin:10px 0 12px;outline:none}
+.webhook:focus{border-color:var(--green)}
+.preview{background:#F7F9F4;border:1px dashed var(--line);border-radius:11px;padding:12px;font-size:12.5px;white-space:pre-wrap;line-height:1.6;margin-bottom:12px;max-height:260px;overflow:auto}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:var(--pine);color:#fff;
+  padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700;opacity:0;transition:all .3s;z-index:50;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
+#fileIn{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Royal Creek · Caddy System</div>
+  <h1>AI อ่านใบจอง + ตัดเบอร์วิน</h1>
+  <div class="sub">ถ่ายรูปใบ Booking T-Time → AI แกะเบอร์จอง → ตัดออกจากเบอร์วิน → ส่ง LINE</div>
+</header>
+
+<main>
+
+<div class="card">
+  <div class="step-tag"><span class="n">1</span> ถ่ายรูป / เลือกรูปใบจอง</div>
+  <p class="hint">ถ่ายทุกหน้าของรายงาน (หน้าที่มีลิสต์เบอร์ท้ายรายงานสำคัญที่สุด) วางกระดาษให้ตรง แสงสว่าง</p>
+  <input type="file" id="fileIn" accept="image/*" multiple>
+  <div style="margin-top:12px">
+    <button class="btn btn-green" onclick="document.getElementById('fileIn').click()">📷 เพิ่มรูปใบจอง</button>
+  </div>
+  <div class="thumbs" id="thumbs"></div>
+</div>
+
+<div class="card">
+  <div class="step-tag"><span class="n">2</span> ให้ AI อ่าน</div>
+  <button class="btn btn-dark" id="readBtn" onclick="runAI()" disabled>🤖 เริ่มอ่านใบจอง</button>
+  <div class="loading" id="loading">
+    <div class="spin"></div>
+    <div class="lt">AI กำลังอ่านใบจอง…</div>
+    <div class="ls">แกะลิสต์เบอร์ · เทียบ Remark · ตรวจยอดรวม (ราว 20-40 วินาที)</div>
+  </div>
+</div>
+
+<div class="card" id="resultCard" style="display:none">
+  <div class="step-tag"><span class="n">3</span> ตรวจผลก่อนส่ง <span class="hint" style="font-weight:500">— จิ้มแก้เบอร์ / ลบ / เพิ่มได้</span></div>
+  <div class="sheet">
+    <div class="sheet-head">
+      <span class="t">เบอร์ที่ถูกจอง</span>
+      <span class="d" id="sheetDate"></span>
+    </div>
+    <div id="groups"></div>
+  </div>
+
+  <div class="win-box">
+    <div class="win-head"><span>✅ เบอร์วินคงเหลือ</span><span id="winCount"></span></div>
+    <div class="win-body" id="winNums"></div>
+    <div class="off-line" id="offLine"></div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="v" id="stCad">0</div><div class="l">เบอร์ถูกจอง</div></div>
+    <div class="stat"><div class="v" id="stLeave">0</div><div class="l">ลา</div></div>
+    <div class="stat"><div class="v" id="stWin">0</div><div class="l">เบอร์วินคงเหลือ</div></div>
+    <div class="stat"><div class="v" id="stOff">0</div><div class="l">หยุดตามวัน</div></div>
+  </div>
+  <div id="checks"></div>
+</div>
+
+<div class="card" id="lineCard" style="display:none">
+  <div class="step-tag"><span class="n">4</span> ส่งเข้า LINE</div>
+  <p class="hint">วาง URL ของ Make.com Webhook (Webhook → LINE Push Message)</p>
+  <input class="webhook" id="webhookUrl" type="url" placeholder="https://hook.eu2.make.com/xxxxxxxxxxxx">
+  <div class="preview" id="linePreview"></div>
+  <button class="btn btn-green" onclick="sendLine()">📨 ส่งสรุปเข้า LINE</button>
+</div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ ทะเบียนเบอร์วิน (แก้ตรงนี้เมื่อมีเข้า-ออก) ============
+   กติกาวัน:  all = ทุกวัน | we = เฉพาะ ส-อา | wd = จ-ศ | tfss = พฤ ศ ส อา */
+const ROSTER = [
+ ['01','all'],['02','we'],['05','we'],['08','all'],['09','all'],['10','all'],
+ ['11','all'],['13','all'],['14','all'],['16','all'],['17','all'],['19','all'],
+ ['22','all'],['24','we'],['25','all'],['26','all'],['27','all'],['28','all'],
+ ['30','all'],['31','all'],['32','all'],['33','all'],['34','all'],['35','all'],
+ ['36','all'],['37','we'],['39','we'],['40','all'],['41','all'],['43','all'],
+ ['44','all'],['45','all'],['46','all'],['47','all'],['48','we'],['49','we'],
+ ['50','all'],['51','wd'],['54','we'],['55','all'],['56','we'],['57','all'],
+ ['58','all'],['59','all'],['60','wd'],['61','wd'],['62','all'],['63','all'],
+ ['64','tfss'],['65','all'],['66','all'],['67','all'],['68','we'],['69','all'],
+ ['70','all'],['71','all'],['72','we'],['76','we'],['77','we'],['80','all'],
+ ['82','all'],['83','all'],['84','all'],['85','we'],['87','all'],['91','all']
+];
+const DAY_TH = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+function ruleOk(rule, dow){
+  if(rule==='all') return true;
+  if(rule==='we')  return dow===0||dow===6;
+  if(rule==='wd')  return dow>=1&&dow<=5;
+  if(rule==='tfss')return dow===0||dow===4||dow===5||dow===6;
+  return true;
+}
+function parseThDate(s){ // "15/07/2026" -> Date
+  const m = String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(!m) return null;
+  let y = +m[3]; if(y>2400) y-=543;
+  return new Date(y, +m[2]-1, +m[1]);
+}
+const num2 = s => String(parseInt(String(s).replace(/\D/g,''),10)).padStart(2,'0');
+
+/* ============ state ============ */
+let photos = [];
+let data = null;
+
+function toast(msg, err){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(t._h); t._h = setTimeout(()=> t.className='toast', 3400);
+}
+
+/* ============ step 1 ============ */
+document.getElementById('fileIn').addEventListener('change', async e=>{
+  for(const f of e.target.files){
+    try{ photos.push(await compress(f)); }
+    catch(err){ toast('อ่านไฟล์รูปไม่ได้: '+err.message, true); }
+  }
+  e.target.value=''; renderThumbs();
+});
+function compress(file){
+  return new Promise((res, rej)=>{
+    const rd = new FileReader();
+    rd.onerror = ()=> rej(new Error('อ่านไฟล์ไม่ได้'));
+    rd.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        try{
+          const MAX = 2000;
+          let w = img.width, h = img.height;
+          if(Math.max(w,h) > MAX){ const k = MAX/Math.max(w,h); w=Math.round(w*k); h=Math.round(h*k); }
+          const c = document.createElement('canvas'); c.width=w; c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          const url = c.toDataURL('image/jpeg', .88);
+          res({ b64:url.split(',')[1], mime:'image/jpeg', preview:url });
+        }catch(e){ rej(e); }
+      };
+      img.onerror = ()=> rej(new Error('รูปแบบไฟล์ไม่รองรับ (ลอง JPG/PNG)'));
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+function renderThumbs(){
+  document.getElementById('thumbs').innerHTML = photos.map((p,i)=>`
+    <div class="thumb"><img src="${p.preview}"><span class="pg">หน้า ${i+1}</span>
+    <button class="rm" onclick="rmPhoto(${i})">✕</button></div>`).join('');
+  document.getElementById('readBtn').disabled = photos.length===0;
+}
+function rmPhoto(i){ photos.splice(i,1); renderThumbs(); }
+
+/* ============ step 2: AI ============ */
+async function runAI(){
+  const btn=document.getElementById('readBtn'), ld=document.getElementById('loading');
+  btn.style.display='none'; ld.style.display='block';
+  document.getElementById('resultCard').style.display='none';
+  document.getElementById('lineCard').style.display='none';
+  try{
+    if(location.protocol==='file:') throw new Error('ต้องเปิดผ่านเว็บ Netlify เท่านั้น (ไฟล์ในเครื่องเรียก AI ไม่ได้)');
+    const rs = await fetch('https://ewfwvykelkamdfsnprwo.supabase.co/functions/v1/read-booking',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({images: photos.map(p=>({b64:p.b64,mime:p.mime}))})
+    });
+    const j = await rs.json().catch(()=>({}));
+    if(!rs.ok || j.error) throw new Error(j.error||('เรียก AI ไม่สำเร็จ (HTTP '+rs.status+')'));
+    const txt = String(j.text||'').replace(/```json|```/g,'').trim();
+    data = JSON.parse(txt);
+    if(!Array.isArray(data.groups)) throw new Error('รูปแบบคำตอบไม่ถูกต้อง');
+    renderResult();
+    toast('อ่านเสร็จแล้ว ตรวจผลด้านล่างได้เลย');
+  }catch(err){ console.error(err); toast('อ่านไม่สำเร็จ: '+err.message, true); }
+  finally{ ld.style.display='none'; btn.style.display='flex'; }
+}
+
+/* ============ step 3: render ============ */
+function isLeave(g){
+  if(g.type==='leave') return true;
+  const c=(g.customer||'').trim();
+  return c==='ลา'||c==='ลากิจ'||c==='ลาป่วย'||c==='ลาพักร้อน'||c==='ลาหยุด';
+}
+function calc(){
+  const booked=new Set(), leave=new Set();
+  data.groups.forEach(g=>(g.caddies||[]).forEach(c=>{
+    const n=String(c.no||'').replace(/\D/g,''); if(!n) return;
+    (isLeave(g)?leave:booked).add(num2(n));
+  }));
+  const d = parseThDate(data.report_date);
+  const dow = d ? d.getDay() : null;
+  const rosterMap = new Map(ROSTER);
+  const win=[], off=[];
+  ROSTER.forEach(([no,rule])=>{
+    if(booked.has(no)||leave.has(no)) return;
+    if(dow!==null && !ruleOk(rule,dow)) off.push(no);
+    else win.push(no);
+  });
+  const all=[...booked,...leave];
+  const aliens=all.filter(n=>!rosterMap.has(n)).sort((a,b)=>a-b);
+  const offBooked=[...booked].filter(n=>rosterMap.has(n)&&dow!==null&&!ruleOk(rosterMap.get(n),dow)).sort((a,b)=>a-b);
+  return {booked,leave,win,off,aliens,offBooked,dow};
+}
+
+function renderResult(){
+  document.getElementById('resultCard').style.display='block';
+  document.getElementById('lineCard').style.display='block';
+  const r = calc();
+  const dayLb = r.dow!==null ? ' (วัน'+DAY_TH[r.dow]+')' : '';
+  document.getElementById('sheetDate').textContent = (data.report_date||'-') + dayLb;
+
+  const cnt={};
+  data.groups.forEach(g=>{ if(isLeave(g)) return;
+    (g.caddies||[]).forEach(c=>{const n=String(c.no||'').replace(/\D/g,''); if(n){const k=num2(n); cnt[k]=(cnt[k]||0)+1;}});});
+  const rosterMap = new Map(ROSTER);
+
+  document.getElementById('groups').innerHTML = data.groups.map((g,gi)=>{
+    const lv=isLeave(g);
+    const cads=g.caddies||[];
+    const chips=cads.map((c,ci)=>{
+      const raw=String(c.no||'').replace(/\D/g,'');
+      const k=raw?num2(raw):'';
+      const cls=(k&&!rosterMap.has(k))?'alien':(lv?'lv':(k&&cnt[k]>1?'dup':''));
+      return `<span class="chip ${cls}">
+        <input value="${c.no||''}" maxlength="3" inputmode="numeric" onchange="editNo(${gi},${ci},this.value)">
+        <span class="nm">${c.nick?'('+c.nick+')':''}${c.name||''}</span>
+        <button class="x" onclick="delCad(${gi},${ci})">✕</button></span>`;
+    }).join('');
+    const none=cads.length===0?`<span class="none-lb">— ไม่ใช้แคดดี้ / ไม่ระบุเบอร์ —</span>`:'';
+    return `<div class="grp ${cads.length===0?'grp-none':''}">
+      <div class="grp-top"><span class="grp-time">${g.time||'--:--'}</span>
+      <span class="grp-cust">${g.customer||''}</span>
+      ${lv?'<span class="lv-badge">ลา — ไม่ใช่การจอง</span>':''}
+      <span class="grp-meta">${lv?'':'นักกอล์ฟ '+(g.golfers??'-')+' · แคดดี้ '+(g.caddies_count??'-')}</span></div>
+      <div class="chips">${chips}${none}<button class="addc" onclick="addCad(${gi})">+ เพิ่มเบอร์</button></div></div>`;
+  }).join('');
+
+  document.getElementById('winNums').innerHTML =
+    r.win.map(n=>`<span class="wn">${n}</span>`).join('') || '<span class="hint">— ไม่เหลือเบอร์วินเลย —</span>';
+  document.getElementById('winCount').textContent = r.win.length+' เบอร์';
+  const offParts=[];
+  if(r.leave.size) offParts.push(`📝 ลา (${r.leave.size}): <b>${[...r.leave].sort((a,b)=>a-b).join(', ')}</b>`);
+  offParts.push(r.off.length?`🚫 หยุดตามวัน (${r.off.length}): <b>${r.off.join(', ')}</b>`:'🚫 หยุดตามวัน: ไม่มี');
+  document.getElementById('offLine').innerHTML = offParts.join('<br>');
+
+  document.getElementById('stCad').textContent = r.booked.size;
+  document.getElementById('stLeave').textContent = r.leave.size;
+  document.getElementById('stWin').textContent = r.win.length;
+  document.getElementById('stOff').textContent = r.off.length;
+
+  const checks=[];
+  let totalRead=0;
+  data.groups.forEach(g=>(g.caddies||[]).forEach(c=>{if(String(c.no||'').replace(/\D/g,''))totalRead++;}));
+  const tot=data.totals_row?.caddies;
+  if(tot!=null){
+    if(Number(tot)===totalRead)
+      checks.push(`<div class="check ok"><span class="ic">✓</span><span>ยอดตรงกับใบรายงาน — อ่านได้ <b>${totalRead}</b> รายการ เท่ากับแถวรวม <b>${tot}</b></span></div>`);
+    else
+      checks.push(`<div class="check bad"><span class="ic">✕</span><span><b>ยอดไม่ตรง!</b> อ่านได้ ${totalRead} รายการ แต่แถวรวมบอก ${tot} — ไล่เช็คกับกระดาษก่อนส่ง</span></div>`);
+  }
+  const dups=Object.entries(cnt).filter(([,v])=>v>1).map(([k])=>k);
+  if(dups.length) checks.push(`<div class="check warn"><span class="ic">⟳</span><span>เบอร์จอง 2 รอบขึ้นไป: <b>${dups.join(', ')}</b></span></div>`);
+  if(r.aliens.length) checks.push(`<div class="check bad"><span class="ic">?</span><span>เบอร์ที่ปรากฏในใบ (จอง/ลา) แต่<b>ไม่มีในทะเบียนเบอร์วิน</b>: <b>${r.aliens.join(', ')}</b> — เช็คว่า AI อ่านผิด, ทะเบียนตกหล่น หรือเป็นเบอร์นอกวิน</span></div>`);
+  if(r.offBooked.length) checks.push(`<div class="check warn"><span class="ic">⚠</span><span>เบอร์ที่ถูกจองทั้งที่เป็น<b>วันหยุดประจำ</b>ของเขา: <b>${r.offBooked.join(', ')}</b> (ถ้ามาจริงถือว่าโอเค)</span></div>`);
+  (data.warnings||[]).forEach(w=>checks.push(`<div class="check warn"><span class="ic">⚠</span><span>${w}</span></div>`));
+  document.getElementById('checks').innerHTML=checks.join('');
+
+  buildLineMsg();
+}
+function editNo(gi,ci,v){ data.groups[gi].caddies[ci].no=v; renderResult(); }
+function delCad(gi,ci){ data.groups[gi].caddies.splice(ci,1); renderResult(); }
+function addCad(gi){ data.groups[gi].caddies=data.groups[gi].caddies||[]; data.groups[gi].caddies.push({no:'',nick:'',name:''}); renderResult(); }
+
+/* ============ step 4: LINE ============ */
+function buildLineMsg(){
+  const r = calc();
+  const dayLb = r.dow!==null?' (วัน'+DAY_TH[r.dow]+')':'';
+  const L=[];
+  L.push(`📋 ใบจองแคดดี้ ${data.report_date||''}${dayLb}`);
+  L.push(``);
+  L.push(`🔒 ถูกจอง ${r.booked.size} เบอร์:`);
+  L.push([...r.booked].sort((a,b)=>a-b).join(', '));
+  if(r.leave.size){ L.push(``); L.push(`📝 ลา ${r.leave.size} เบอร์: ${[...r.leave].sort((a,b)=>a-b).join(', ')}`); }
+  L.push(``);
+  L.push(`✅ เบอร์วินคงเหลือ ${r.win.length} เบอร์:`);
+  L.push(r.win.join(', '));
+  if(r.off.length){ L.push(``); L.push(`🚫 หยุดตามวัน (${r.off.length}): ${r.off.join(', ')}`); }
+  if(r.aliens.length) L.push(`❓ ไม่มีในทะเบียน (จอง/ลา): ${r.aliens.join(', ')}`);
+  const tot=data.totals_row?.caddies;
+  let totalRead=0; data.groups.forEach(g=>(g.caddies||[]).forEach(c=>{if(String(c.no||'').replace(/\D/g,''))totalRead++;}));
+  if(tot!=null) L.push(Number(tot)===totalRead?`✓ ยอดตรงใบรายงาน (${totalRead}/${tot})`:`✕ ยอดไม่ตรงใบรายงาน (${totalRead}/${tot})`);
+  const msg=L.join('\n');
+  document.getElementById('linePreview').textContent=msg;
+  return msg;
+}
+async function sendLine(){
+  const url=document.getElementById('webhookUrl').value.trim();
+  if(!url.startsWith('http')){ toast('วาง URL ของ Make Webhook ก่อนครับ', true); return; }
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:buildLineMsg(),source:'caddy-scan-test'})});
+    toast('ส่งแล้ว — เช็คข้อความใน LINE ได้เลย');
+  }catch(err){ toast('ส่งไม่สำเร็จ: '+err.message, true); }
+}
+</script>
+</body>
+</html>
