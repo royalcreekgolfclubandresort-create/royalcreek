@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>จัดการพนักงาน · Royal Creek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#123a2a;--green-2:#1b5e3f;--gold:#c9a24b;--gold-soft:#e6d29a;--cream:#f6f4ee;
+    --card:#fff;--ink:#20261f;--muted:#6b7268;--line:#e2ddcf;--danger:#a3352d;--ok:#1b7a4a;--tap:54px}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:'Sarabun',system-ui,sans-serif;color:var(--ink);background:var(--cream);font-size:17px;line-height:1.5}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit;font-size:inherit}
+  .hidden{display:none!important}
+  .crest{width:44px;height:44px;border-radius:12px;background:var(--green);display:flex;align-items:center;
+    justify-content:center;border:1.5px solid var(--gold);color:var(--gold);font-weight:700;font-size:15px;flex:none}
+
+  #login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:22px;
+    background:radial-gradient(120% 90% at 50% -10%,#16482f,var(--green) 55%,#0d2b1f)}
+  .card{width:100%;max-width:420px;background:var(--card);border-radius:22px;padding:28px 24px;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+  .brand{display:flex;align-items:center;gap:13px;margin-bottom:22px}
+  .brand h1{margin:0;font-size:19px;font-weight:700}.brand p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .fld{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  .input{width:100%;height:var(--tap);border:1.5px solid var(--line);border-radius:12px;padding:0 15px;background:#fbfaf5;margin-bottom:16px}
+  .input:focus{outline:none;border-color:var(--green-2);background:#fff}
+  .btn{width:100%;height:var(--tap);border-radius:12px;background:var(--green-2);color:#fff;font-weight:700}
+  .btn:active{transform:translateY(1px)}.btn:disabled{opacity:.5}
+  .msg{margin-top:12px;text-align:center;font-size:14px;min-height:20px}.msg.err{color:var(--danger)}
+
+  .topbar{background:var(--green);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+  .topbar h1{margin:0;font-size:16px;font-weight:700}.topbar .sub{font-size:12px;color:var(--gold-soft)}
+  .logout{margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:8px 12px;color:#fff;font-weight:600;font-size:13px}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 40px}
+  .addbtn{width:100%;height:50px;border-radius:12px;border:1.5px dashed var(--gold);color:#8a6d1f;font-weight:700;margin-bottom:16px}
+
+  .emp{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+  .emp:active{background:#fbfaf5}
+  .emp .av{width:42px;height:42px;border-radius:50%;background:#eef5f0;color:var(--green-2);font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+  .emp .nm{font-weight:600}.emp.off{opacity:.5}
+  .badges{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px}
+  .badge{font-size:11px;background:#e4f0e9;color:#1b6b45;padding:2px 8px;border-radius:20px}
+  .badge.none{background:#f1ede1;color:#8a7433}
+  .chev{margin-left:auto;color:var(--muted)}
+
+  .ov{position:fixed;inset:0;background:rgba(20,25,20,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+  .sheet{background:var(--card);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:22px 20px 26px;max-height:90vh;overflow:auto}
+  .sheet h3{margin:0 0 4px}.sheet .cap{font-size:13px;color:var(--muted);margin:0 0 16px}
+  .row{margin-bottom:13px}.row label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+  .in{width:100%;height:48px;border:1.5px solid var(--line);border-radius:11px;padding:0 13px;background:#fbfaf5}
+  .in:focus{outline:none;border-color:var(--green-2);background:#fff}
+  .save{width:100%;height:50px;border-radius:12px;background:var(--green-2);color:#fff;font-weight:700;margin-top:6px}
+  .ghost{width:100%;height:44px;border-radius:12px;color:var(--muted);font-weight:600;margin-top:8px}
+  .sec{border-top:1px solid var(--line);margin:18px 0 14px;padding-top:16px}
+  .sec h4{margin:0 0 10px;font-size:14px}
+  .grow{display:flex;align-items:center;gap:8px;background:#fbfaf5;border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:8px}
+  .pgroup{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:10px;background:#fbfaf5}
+  .pg-h{font-weight:700;font-size:14px;margin-bottom:8px}
+  .nperm{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .nperm:first-of-type{border-top:none}
+  .nperm b{font-size:14px;display:block}
+  .nperm small{color:var(--mut);font-size:11.5px;display:block;max-width:340px}
+  .chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+  .chip{border:1.5px solid var(--line);border-radius:99px;padding:4px 11px;font-size:12.5px;cursor:pointer;user-select:none;background:#fff;color:var(--mut);transition:.12s}
+  .chip.on{background:#1a7f4b;border-color:#1a7f4b;color:#fff;font-weight:700}
+  .chip:active{transform:scale(.94)}
+  .perm{display:flex;align-items:flex-start;gap:11px;padding:8px 2px;cursor:pointer}
+  .perm input{width:21px;height:21px;flex:none;margin-top:1px;accent-color:var(--green-2)}
+  .perm span{flex:1;line-height:1.3}.perm b{font-size:14px;font-weight:600}
+  .perm small{display:block;color:var(--muted);font-size:12px}
+  .perm .badge{display:inline-block;background:#eef5f0;color:var(--green-2);border-radius:8px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:5px}
+  .venrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
+  .venrow select{height:38px;border:1.5px solid var(--line);border-radius:9px;background:#fff;padding:0 8px;font-size:13px}
+  .grow .t{flex:1;font-size:14px}
+  .grow .del{color:var(--danger);font-weight:600;font-size:13px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+  .g3 select{height:46px;border:1.5px solid var(--line);border-radius:10px;background:#fbfaf5;padding:0 8px;font-size:14px}
+  .addg{width:100%;height:44px;border-radius:10px;background:#eef5f0;color:var(--green-2);font-weight:700}
+  .pinrow{display:flex;gap:8px}.pinrow .in{flex:1}.pinrow button{padding:0 16px;border-radius:11px;background:#eef5f0;color:var(--green-2);font-weight:700}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:30;max-width:88%;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .empty{text-align:center;color:var(--muted);padding:40px 20px}
+  .setup{max-width:520px;margin:60px auto;padding:26px;background:#fff;border:1px solid var(--line);border-radius:16px;line-height:1.7}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="card">
+    <div class="brand"><div class="crest">RC</div>
+      <div><h1>จัดการพนักงาน</h1><p>สำหรับเจ้าของ / ผู้จัดการ</p></div></div>
+    <label class="fld">ชื่อผู้ใช้</label>
+    <input id="username" class="input" autocomplete="username" placeholder="เช่น richard">
+    <label class="fld">รหัสผ่าน</label>
+    <input id="password" class="input" type="password" autocomplete="current-password" placeholder="••••••••">
+    <button id="loginBtn" class="btn" onclick="login()">เข้าสู่ระบบ</button>
+    <div id="msg" class="msg"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="topbar"><div class="crest">RC</div>
+    <div><h1>จัดการพนักงาน</h1><div class="sub" id="hello"></div></div>
+    <button class="logout" onclick="logout()">ออก</button></div>
+  <div class="wrap">
+    <button class="addbtn" onclick="openAdd()">＋ เพิ่มพนักงาน</button>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div id="modal"></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const CONFIG={
+  SUPABASE_URL:'https://ewfwvykelkamdfsnprwo.supabase.co',
+  SUPABASE_ANON_KEY:'sb_publishable_aPAwNkCIKRTc9FrTW5jeRA_WfnSQqJk',
+  INTERNAL_DOMAIN:'royalcreek.local'
+};
+const configured=!CONFIG.SUPABASE_URL.includes('YOUR')&&!CONFIG.SUPABASE_ANON_KEY.includes('YOUR');
+let sb=configured?supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY):null;
+const $=id=>document.getElementById(id);
+let emps=[], grants=[], modules=[], venues=[], roles=[];
+
+function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200);}
+function msg(t){$('msg').textContent=t||'';$('msg').className='msg err';}
+function guard(){if(configured)return false;document.body.innerHTML='<div class="setup"><h2>ตั้งค่าก่อนใช้งาน</h2><p>ยังไม่ได้ใส่ค่า Supabase ใน CONFIG</p></div>';return true;}
+
+/* ===== LOGIN ===== */
+async function login(){
+  if(guard())return;
+  const u=$('username').value.trim().toLowerCase(), p=$('password').value;
+  if(!u||!p){msg('กรอกชื่อผู้ใช้และรหัสผ่าน');return;}
+  const email=u.includes('@')?u:(u+'@'+CONFIG.INTERNAL_DOMAIN);
+  $('loginBtn').disabled=true;$('msg').textContent='กำลังเข้าสู่ระบบ…';$('msg').className='msg';
+  const {data,error}=await sb.auth.signInWithPassword({email,password:p});
+  $('loginBtn').disabled=false;
+  if(error){msg('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');return;}
+  const {data:isMgr}=await sb.rpc('core_is_manager');
+  if(!isMgr){msg('บัญชีนี้ไม่มีสิทธิ์จัดการพนักงาน');await sb.auth.signOut();return;}
+  const ok=await actorFromAuth(data.user);
+  if(!ok){msg('บัญชีนี้ยังไม่ได้ผูกกับพนักงานในระบบ');return;}
+  $('hello').textContent=u;
+  enter();
+}
+let me={actorId:null,isOwner:false};
+async function actorFromAuth(user){
+  const {data:emp}=await sb.from('core_employees').select('id').eq('auth_user_id',user.id).maybeSingle();
+  if(!emp)return false;me.actorId=emp.id;return true;
+}
+function enter(){$('login').classList.add('hidden');$('app').classList.remove('hidden');loadAll();}
+
+/* ===== LOAD ===== */
+async function loadAll(){
+  const {data,error}=await sb.rpc('core_staff_admin_data',{p_actor:me.actorId});
+  if(error||!data){toast(error?error.message:'โหลดไม่สำเร็จ');return;}
+  emps=data.employees||[];grants=data.grants||[];modules=data.modules||[];
+  venues=data.venues||[];roles=data.roles||[];me.isOwner=!!data.is_owner;
+  render();
+}
+function moduleTh(k){const m=modules.find(x=>x.key===k);return m?m.name_th:(k||'ทุกโมดูล');}
+function grantLabel(g){
+  const mod=moduleTh(g.module_key);
+  const ven=g.venue?(' · '+g.venue.code):'';
+  const rol=g.role?(' ('+g.role.name_th+')'):'';
+  return mod+ven+rol;
+}
+function render(){
+  if(!emps.length){$('list').innerHTML='<div class="empty">ยังไม่มีพนักงาน กด “เพิ่มพนักงาน” เพื่อเริ่ม</div>';return;}
+  $('list').innerHTML=emps.map(e=>{
+    const gs=grants.filter(x=>x.employee_id===e.id);
+    const badges=gs.length?gs.map(g=>`<span class="badge">${esc(grantLabel(g))}</span>`).join('')
+      :'<span class="badge none">ยังไม่มีสิทธิ์</span>';
+    const init=(e.nickname||e.full_name_th||'?').trim().charAt(0);
+    return `<div class="emp ${e.is_active?'':'off'}" onclick='openEmp("${e.id}")'>
+      <div class="av">${esc(init)}</div>
+      <div style="flex:1;min-width:0"><div class="nm">${esc(e.nickname||e.full_name_th)}${e.is_active?'':' (ปิด)'}</div>
+        <div style="font-size:13px;color:var(--muted)">${esc(e.full_name_th)}</div>
+        <div class="badges">${badges}</div></div>
+      <div class="chev">›</div></div>`;
+  }).join('');
+}
+
+/* ===== ADD EMPLOYEE ===== */
+function openAdd(){
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>เพิ่มพนักงาน</h3><p class="cap">กรอกข้อมูลแล้วตั้ง PIN 4 หลักสำหรับเข้าแอปหน้างาน</p>
+    <div class="row"><label>ชื่อ-นามสกุล</label><input class="in" id="aName" placeholder="เช่น สมชาย ใจดี"></div>
+    <div class="row"><label>ชื่อเล่น</label><input class="in" id="aNick" placeholder="เช่น ชาย"></div>
+    <div class="row"><label>เบอร์โทร (ถ้ามี)</label><input class="in" id="aPhone" inputmode="tel"></div>
+    <div class="row"><label>PIN 4 หลัก</label><input class="in" id="aPin" inputmode="numeric" maxlength="4" placeholder="เช่น 1234"></div>
+    <button class="save" onclick="saveAdd()">เพิ่มพนักงาน</button>
+    <button class="ghost" onclick="closeModal()">ยกเลิก</button></div></div>`;
+}
+async function saveAdd(){
+  const name=$('aName').value.trim();if(!name){toast('ใส่ชื่อก่อน');return;}
+  const pin=$('aPin').value.trim();
+  const {data:id,error}=await sb.rpc('core_admin_emp_add2',
+    {p_actor:me.actorId,p_name:name,p_nick:$('aNick').value.trim(),p_phone:$('aPhone').value.trim()});
+  if(error){toast('เพิ่มไม่สำเร็จ');return;}
+  if(pin.length===4){await sb.rpc('core_admin_set_pin2',{p_actor:me.actorId,p_emp:id,p_pin:pin});}
+  closeModal();toast('เพิ่มพนักงานแล้ว');await loadAll();
+}
+
+/* ===== EDIT EMPLOYEE ===== */
+let empPerms=[];
+async function openEmp(id){
+  const e=emps.find(x=>x.id===id);if(!e)return;
+  const {data:pd}=await sb.rpc('core_perm_get',{p_actor:me.actorId,p_emp:id});
+  empPerms=pd||[];
+
+  $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
+    <h3>${esc(e.nickname||e.full_name_th)}</h3><p class="cap">${esc(e.full_name_th)}</p>
+    <div class="row"><label>ชื่อ-นามสกุล</label><input class="in" id="eName" value="${esc(e.full_name_th)}"></div>
+    <div class="row"><label>ชื่อเล่น</label><input class="in" id="eNick" value="${esc(e.nickname||'')}"></div>
+    <div class="row"><label>เบอร์โทร</label><input class="in" id="ePhone" value="${esc(e.phone||'')}" inputmode="tel"></div>
+    <div class="row"><label>สถานะ</label>
+      <select class="in" id="eActive"><option value="1" ${e.is_active?'selected':''}>เปิดใช้งาน</option>
+        <option value="0" ${e.is_active?'':'selected'}>ปิดใช้งาน</option></select></div>
+    <button class="save" onclick="saveEmp('${id}')">บันทึกข้อมูล</button>
+
+    <div class="sec"><h4>ตั้ง / เปลี่ยน PIN</h4>
+      <div class="pinrow"><input class="in" id="ePin" inputmode="numeric" maxlength="4" placeholder="PIN 4 หลักใหม่">
+        <button onclick="setPin('${id}')">ตั้ง PIN</button></div></div>
+
+    <div class="sec"><h4>บัญชีเข้าระบบ (สำหรับทำแทนเจ้าของ)</h4>
+      ${e.login_username||e.auth_user_id?
+        `<p class="cap" style="margin:0 0 8px">บัญชี: <b>${esc(e.login_username||'(ผูกไว้แล้ว)')}</b> — ล็อกอินที่หน้ารวมแบบเจ้าของได้</p>
+         <div class="pinrow"><input class="in" id="lgPass" type="text" placeholder="รหัสผ่านใหม่ (6+ ตัว)">
+         <button class="mini" onclick="resetLogin('${id}')">เปลี่ยนรหัส</button></div>`
+        :
+        `<p class="cap" style="margin:0 0 8px">สร้างบัญชี username/password ให้คนนี้ล็อกอินแบบเจ้าของ (ใช้เข้า Staff/ระบบจัดการ)</p>
+         <div class="pinrow"><input class="in" id="lgUser" placeholder="username เช่น manager1">
+         <input class="in" id="lgPass" type="text" placeholder="รหัสผ่าน 6+ ตัว"></div>
+         <button class="addg" onclick="createLogin('${id}')">＋ สร้างบัญชีเข้าระบบ</button>`}
+    </div>
+
+    <div class="sec"><h4>สิทธิ์รายข้อ — ติ๊กสิ่งที่ทำได้ + เลือกร้าน</h4>
+      <p class="cap" style="margin:0 0 6px">แถวที่มีตัวเลือกร้าน: กด "ทุกร้าน" หรือกดเลือกทีละร้าน (เลือกได้หลายร้าน) · สีเข้ม = มีสิทธิ์</p>
+      <div id="npermBox">${buildNPerms(id)}</div>
+    </div>
+    <div class="sec"><h4>สิทธิ์การใช้งาน — ติ๊กสิ่งที่คนนี้ทำได้</h4>
+      <div id="permBox">${buildPerms(id)}</div>
+      <div id="extraGrants">${extraGrantRows(id)}</div>
+    </div>
+    ${me.isOwner?`<div class="sec" style="border:1px solid #e7b9b3;border-radius:12px;padding:12px">
+      <h4 style="color:#c0392b;margin-top:0">🗑 ลบพนักงานถาวร</h4>
+      <p class="cap" style="margin:0 0 8px">ใช้กับคนที่เพิ่มผิด/ไม่เคยใช้งานจริงเท่านั้น — ประวัติเวลางาน วันลา เงินเดือนของคนนี้จะหายทั้งหมด กู้คืนไม่ได้<br>ถ้าแค่ลาออก ให้เปลี่ยนสถานะด้านบนเป็น "ปิดใช้งาน" แทน (เก็บประวัติไว้ครบ)</p>
+      <button class="ghost" style="color:#c0392b;border-color:#e7b9b3" onclick="delEmp('${id}')">ลบถาวร…</button></div>`:''}
+    <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
+}
+
+/* ===== ติ๊กสิทธิ์รายข้อ (ระบบใหม่) ===== */
+const NPERMS=[
+ {g:'🛒 POS ร้านค้า — เลือกร้านได้',items:[
+   {k:'pos.sell',l:'คีย์ขายหน้าร้าน',d:'ขายสินค้า + เพิ่ม/แก้สินค้าและราคาในร้าน',v:1},
+   {k:'pos.req',l:'เบิกของ',d:'ยื่นใบเบิกจากคลัง/สาขาอื่น · ตรวจรับของ · จ่ายเบิกข้ามสาขาแทนร้านตัวเอง',v:1},
+   {k:'pos.damage',l:'ขอตัดชำรุด',d:'ยื่นขอตัดของเสีย (รอคนมีสิทธิ์อนุมัติ)',v:1},
+   {k:'pos.report',l:'ดูยอด/รายงานร้าน',d:'ยอดขาย บิลย้อนหลัง ประวัติสต็อก',v:1},
+   {k:'pos.approve',l:'อนุมัติของร้าน',d:'อนุมัติ/ปฏิเสธตัดชำรุด · ลบบิล · นับสต็อก',v:1}]},
+ {g:'🏬 คลังกลาง',items:[
+   {k:'wh.purchase',l:'ซื้อเข้าคลัง',d:'รับของเข้า สร้างสินค้าใหม่ ตั้งจุดสั่งซื้อ'},
+   {k:'wh.approve',l:'อนุมัติ + จ่ายใบเบิกให้ร้าน',d:'เลือกได้ว่าอนุมัติให้ร้านไหนบ้าง',v:1},
+   {k:'wh.adjust',l:'ปรับ/ตัดสต็อกคลัง',d:'แก้ยอดสต็อกในคลังตรงๆ (ของหาย-เสีย)'},
+   {k:'wh.report',l:'ดูรายงานคลังกลาง',d:'ซื้อเข้า จ่ายออก ของใกล้หมด'},
+   {k:'wh.crossview',l:'เห็นสต็อกร้านอื่น (ดูอย่างเดียว)',v:1},
+   {k:'wh.crossmanage',l:'จัดการสต็อกร้านอื่นได้',d:'เติม/ปรับสต็อกร้านที่เลือกได้โดยตรง',v:1}]},
+ {g:'🍽 ห้องอาหาร',items:[
+   {k:'rest.serve',l:'รับออร์เดอร์ / เก็บเงิน / เบิกเครื่องดื่ม'},
+   {k:'rest.menu',l:'จัดการเมนู โต๊ะ ราคา'},
+   {k:'rest.approve',l:'อนุมัติ',d:'ยกเลิกโต๊ะ/บิล ลบรายการที่พิมพ์บิลแล้ว'}]},
+ {g:'🏌️ Pro Shop',items:[
+   {k:'ext.key',l:'คีย์ยอดขายรายวัน'},
+   {k:'ext.report',l:'ดูรายงานยอดที่คีย์'}]},
+ {g:'⭐ รายงานรวม',items:[
+   {k:'sys.report',l:'ดูรายงานรวมทุกแผนก (อ่านอย่างเดียว)',d:'เห็นยอด/กำไรรวม แต่แก้อะไรไม่ได้ เหมาะกับบัญชี'}]}
+];
+function npHas(p,v){return empPerms.some(x=>x.perm===p&&(x.venue??null)===(v??null));}
+function npVenues(){return venues.filter(v=>!['WH','REST'].includes(v.code));}
+function buildNPerms(empId){
+  return NPERMS.map(gr=>{
+    const rows=gr.items.map(it=>{
+      let chips='';
+      if(it.v){
+        chips=`<div class="chips">`+
+          `<span class="chip ${npHas(it.k,null)?'on':''}" onclick="toggleNPerm('${empId}','${it.k}','',this)">ทุกร้าน</span>`+
+          npVenues().map(v=>`<span class="chip ${npHas(it.k,v.code)?'on':''}" onclick="toggleNPerm('${empId}','${it.k}','${v.code}',this)">${esc(v.code)}</span>`).join('')+
+          `</div>`;
+      }else{
+        chips=`<div class="chips"><span class="chip ${npHas(it.k,null)?'on':''}" onclick="toggleNPerm('${empId}','${it.k}','',this)">${npHas(it.k,null)?'✓ ได้':'ไม่ได้'}</span></div>`;
+      }
+      return `<div class="nperm"><div><b>${esc(it.l)}</b>${it.d?`<small>${esc(it.d)}</small>`:''}</div>${chips}</div>`;
+    }).join('');
+    return `<div class="pgroup"><div class="pg-h">${gr.g}</div>${rows}</div>`;
+  }).join('');
+}
+async function toggleNPerm(empId,perm,venue,el){
+  const has=empPerms.some(x=>x.perm===perm&&(x.venue??null)===(venue||null));
+  const {error}=await sb.rpc('core_perm_toggle',
+    {p_actor:me.actorId,p_emp:empId,p_perm:perm,p_venue:venue||null,p_on:!has});
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}
+  if(has){empPerms=empPerms.filter(x=>!(x.perm===perm&&(x.venue??null)===(venue||null)));}
+  else{empPerms.push({perm:perm,venue:venue||null});}
+  document.getElementById('npermBox').innerHTML=buildNPerms(empId);
+  toast(has?'ถอนสิทธิ์แล้ว':'ให้สิทธิ์แล้ว ✓');
+}
+
+/* ===== ติ๊กสิทธิ์ (ระบบเดิม — เหลือส่วนที่ยังใช้ระดับ) ===== */
+const PERMS=[
+  {group:'🧹 แม่บ้าน', items:[
+    {label:'แม่บ้าน', desc:'เห็นงานวันนี้ ถ่ายรูปส่งงาน', mod:'housekeeping', role:'housekeeper'},
+    {label:'ผู้ตรวจรับงาน (หัวหน้าแม่บ้าน)', desc:'Dashboard · จัดการจุดตรวจ · มอบหมายพื้นที่', mod:'housekeeping', role:'hk_lead'}]},
+  {group:'🔧 ซ่อมบำรุง', items:[
+    {label:'ช่างซ่อม', desc:'รับงาน ปิดงาน (แจ้งซ่อมได้ทุกคนอยู่แล้ว)', mod:'maintenance', role:'technician'},
+    {label:'ผู้จัดการซ่อมบำรุง', desc:'ยกเลิกใบแจ้ง', mod:'maintenance', role:'manager'}]},
+  {group:'⭐ ทั้งระบบ', items:[
+    {label:'จัดการพนักงาน (เข้า Staff)', desc:'เข้าหน้านี้ด้วย PIN — ตั้งสิทธิ์/PIN/บัญชีแทนเจ้าของ', mod:'settings', role:'manager'},
+    {label:'ผู้จัดการทุกแผนก', desc:'สิทธิ์ผู้จัดการทุกโมดูล ทุกร้าน (ผ่านสิทธิ์รายข้อทั้งหมดอัตโนมัติ)', mod:null, role:'manager'},
+    {label:'เจ้าของ', desc:'เข้าได้ทุกอย่าง + รายงานรวม + ปรับลดสต็อก', mod:null, role:'owner', ownerOnly:true}]}
+];
+function findGrant(empId,mod,role){
+  return grants.find(g=>g.employee_id===empId
+    && (g.module_key||null)===(mod||null)
+    && g.role && g.role.key===role);
+}
+function buildPerms(empId){
+  const venOpt='<option value="">ทุกร้าน</option>'+venues.filter(v=>!['WH','REST'].includes(v.code)).map(v=>`<option value="${v.code}">${esc(v.name_th)} (${v.code})</option>`).join('');
+  return PERMS.map(gr=>{
+    const rows=gr.items.map(it=>{
+      const g=findGrant(empId,it.mod,it.role);
+      const venBadge=g&&g.venue?` <span class="badge">${esc(g.venue.code)}</span>`:(g&&it.useVenue?' <span class="badge">ทุกร้าน</span>':'');
+      const lock=it.ownerOnly&&!me.isOwner;
+      return `<label class="perm" style="${lock?'opacity:.45':''}"><input type="checkbox" ${g?'checked':''} ${lock?'disabled':''}
+        onchange='togglePerm("${empId}",${JSON.stringify(it.mod)},"${it.role}",${it.useVenue?'true':'false'},this)'>
+        <span><b>${esc(it.label)}</b>${venBadge}${lock?' <span class="badge" style="background:#f6efd9;color:#8a6d1f">เฉพาะเจ้าของ</span>':''}<small>${esc(it.desc)}</small></span></label>`;
+    }).join('');
+    const vp=gr.venuePick?`<div class="venrow"><span>ร้านที่ประจำ (ใช้ตอนติ๊กขายของ/ดูยอด):</span><select id="pVen">${venOpt}</select></div>`:'';
+    return `<div class="pgroup"><div class="pg-h">${gr.group}</div>${vp}${rows}</div>`;
+  }).join('');
+}
+function extraGrantRows(empId){
+  const mapped=new Set();
+  PERMS.forEach(gr=>gr.items.forEach(it=>{const g=findGrant(empId,it.mod,it.role);if(g)mapped.add(g.id);}));
+  const extra=grants.filter(g=>g.employee_id===empId&&!mapped.has(g.id));
+  if(!extra.length)return '';
+  return `<div class="pg-h" style="margin-top:10px">สิทธิ์อื่นๆ (ระบบเดิม)</div>`+extra.map(g=>
+    `<div class="grow"><div class="t">${esc(grantLabel(g))}</div><button class="del" onclick="rmGrant('${g.id}','${empId}')">ลบ</button></div>`).join('');
+}
+async function togglePerm(empId,mod,role,useVenue,cb){
+  cb.disabled=true;
+  if(cb.checked){
+    const ven=useVenue?(document.getElementById('pVen')?document.getElementById('pVen').value:''):'';
+    const {error}=await sb.rpc('core_admin_add_grant2',{p_actor:me.actorId,p_emp:empId,p_module:mod,p_venue:ven||null,p_role:role});
+    if(error){toast(error.message||'เพิ่มสิทธิ์ไม่สำเร็จ');cb.checked=false;cb.disabled=false;return;}
+    toast('เพิ่มสิทธิ์แล้ว');
+  }else{
+    const g=findGrant(empId,mod,role);
+    if(g){const {error}=await sb.rpc('core_admin_remove_grant2',{p_actor:me.actorId,p_grant:g.id});
+      if(error){toast(error.message||'ลบไม่สำเร็จ');cb.checked=true;cb.disabled=false;return;}
+      toast('ลบสิทธิ์แล้ว');}
+  }
+  await loadAll();openEmp(empId);
+}
+async function delEmp(id){
+  // รอบแรก: ถามระบบว่าลบได้ไหม + จะหายอะไรบ้าง (ยังไม่ลบ)
+  const {data,error}=await sb.rpc('core_admin_emp_delete2',{p_actor:me.actorId,p_emp:id,p_confirm:null});
+  if(error){alert(error.message||'ตรวจสอบไม่สำเร็จ');return;}
+  const ok=confirm(`ลบ "${data.name}" ถาวร?\n\nข้อมูลที่จะหายทั้งหมด กู้คืนไม่ได้:\n• เวลาเข้า-ออกงาน ${data.time_logs} รายการ\n• ใบลา ${data.leaves} รายการ\n• ข้อมูลเงินเดือน ${data.payroll} รายการ\n\nถ้าแค่ลาออก กด "ยกเลิก" แล้วใช้ปิดใช้งานแทน`);
+  if(!ok)return;
+  const word=prompt('ยืนยันขั้นสุดท้าย — พิมพ์คำว่า  ลบถาวร');
+  if(word!=='ลบถาวร'){toast('ยกเลิกแล้ว (ข้อความไม่ตรง)');return;}
+  const {error:e2}=await sb.rpc('core_admin_emp_delete2',{p_actor:me.actorId,p_emp:id,p_confirm:'ลบถาวร'});
+  if(e2){alert(e2.message||'ลบไม่สำเร็จ');return;}
+  toast('ลบ '+data.name+' ถาวรแล้ว');closeModal();await loadAll();
+}
+async function saveEmp(id){
+  const {error}=await sb.rpc('core_admin_emp_save2',{p_actor:me.actorId,p_emp:id,p_name:$('eName').value.trim(),
+    p_nick:$('eNick').value.trim()||null,p_phone:$('ePhone').value.trim()||null,p_active:$('eActive').value==='1'});
+  if(error){toast('บันทึกไม่สำเร็จ');return;}
+  toast('บันทึกแล้ว');await loadAll();openEmp(id);
+}
+async function setPin(id){
+  const pin=$('ePin').value.trim();
+  if(pin.length!==4){toast('PIN ต้องมี 4 หลัก');return;}
+  const {error}=await sb.rpc('core_admin_set_pin2',{p_actor:me.actorId,p_emp:id,p_pin:pin});
+  if(error){toast('ตั้ง PIN ไม่สำเร็จ');return;}
+  toast('ตั้ง PIN แล้ว');$('ePin').value='';
+}
+async function createLogin(id){
+  const u=($('lgUser').value||'').trim(), p=($('lgPass').value||'').trim();
+  if(!u||!p){toast('กรอก username และรหัสผ่าน');return;}
+  const {data,error}=await sb.rpc('core_admin_create_login2',{p_actor:me.actorId,p_emp:id,p_username:u,p_password:p});
+  if(error){toast(error.message||'สร้างไม่สำเร็จ');return;}
+  toast('สร้างบัญชี '+data+' แล้ว ✓');await loadAll();openEmp(id);
+}
+async function resetLogin(id){
+  const p=($('lgPass').value||'').trim();
+  if(!p){toast('กรอกรหัสผ่านใหม่');return;}
+  if(!confirm('เปลี่ยนรหัสผ่านบัญชีนี้?'))return;
+  const {error}=await sb.rpc('core_admin_reset_password2',{p_actor:me.actorId,p_emp:id,p_password:p});
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}
+  toast('เปลี่ยนรหัสแล้ว ✓');
+}
+async function rmGrant(gid,id){
+  const {error}=await sb.rpc('core_admin_remove_grant2',{p_actor:me.actorId,p_grant:gid});
+  if(error){toast('ลบไม่สำเร็จ');return;}
+  toast('ลบสิทธิ์แล้ว');await loadAll();openEmp(id);
+}
+function closeModal(){$('modal').innerHTML='';}
+
+async function logout(){await sb.auth.signOut();location.reload();}
+
+/* คงสถานะถ้าล็อกอินอยู่ */
+(async function(){
+  if(guard())return;
+  const {data}=await sb.auth.getSession();
+  if(data&&data.session){
+    const {data:isMgr}=await sb.rpc('core_is_manager');
+    if(isMgr&&await actorFromAuth(data.session.user)){
+      $('hello').textContent=(data.session.user.email||'').split('@')[0];enter();return;}
+  }
+  /* พนักงานที่ได้ติ๊ก "จัดการพนักงาน" — เข้าด้วย PIN จากหน้ารวม */
+  try{
+    const st=JSON.parse(sessionStorage.getItem('ryc_staff')||'null');
+    if(st&&st.id){
+      const {data:can}=await sb.rpc('core_staff_admin_can',{p_actor:st.id});
+      if(can){me.actorId=st.id;$('hello').textContent=st.name||'';enter();return;}
+    }
+  }catch(e){}
+})();
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
+</script>
+</body>
+</html>
