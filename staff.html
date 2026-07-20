@@ -127,7 +127,7 @@ const CONFIG={
 const configured=!CONFIG.SUPABASE_URL.includes('YOUR')&&!CONFIG.SUPABASE_ANON_KEY.includes('YOUR');
 let sb=configured?supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY):null;
 const $=id=>document.getElementById(id);
-let emps=[], grants=[], modules=[], venues=[], roles=[];
+let emps=[], grants=[], modules=[], venues=[], roles=[], modUrls={};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200);}
@@ -164,6 +164,8 @@ async function loadAll(){
   if(error||!data){toast(error?error.message:'โหลดไม่สำเร็จ');return;}
   emps=data.employees||[];grants=data.grants||[];modules=data.modules||[];
   venues=data.venues||[];roles=data.roles||[];me.isOwner=!!data.is_owner;
+  const {data:fm}=await sb.from('core_modules').select('key,url').eq('is_active',true);
+  modUrls=Object.fromEntries((fm||[]).map(m=>[m.key,m.url||'']));
   render();
 }
 function moduleTh(k){const m=modules.find(x=>x.key===k);return m?m.name_th:(k||'ทุกโมดูล');}
@@ -287,7 +289,7 @@ function npHas(p,v){return empPerms.some(x=>x.perm===p&&(x.venue??null)===(v??nu
 function npVenues(){return venues.filter(v=>!['WH','REST'].includes(v.code));}
 const NP_COVERED=['pos','restaurant','warehouse','proshop','housekeeping','maintenance','settings','time'];
 function npGroups(){
-  const extra=(modules||[]).filter(m=>!NP_COVERED.includes(m.key))
+  const extra=(modules||[]).filter(m=>!NP_COVERED.includes(m.key)&&modUrls[m.key]!=='/time.html')
     .map(m=>({k:'mod.'+m.key,l:'เข้าใช้งาน '+(m.name_th||m.key)}));
   return extra.length?NPERMS.concat([{g:'🎛 หน้าอื่นๆ',items:extra}]):NPERMS;
 }
