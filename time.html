@@ -257,6 +257,7 @@ async function printReport(){
 }
 async function empDetail(id,name){
   const m=$('rMonth').value;
+  window._dtl={id:id,name:name};
   const {data,error}=await sb.rpc('core_time_detail',{p_emp:me.id,p_target:id,p_month:m});
   if(error){toast(error.message);return;}
   const rows=(data||[]).map(d=>{
@@ -265,13 +266,41 @@ async function empDetail(id,name){
       <b style="${short?'color:var(--danger)':''}">${d.hrs!=null?d.hrs+' ชม.':'–'}</b>
       ${Number(d.ot||0)>0?`<small style="color:var(--ok);font-weight:700">OT ${d.ot}</small>`:''}
       ${short?'<small style="color:var(--danger);font-weight:700">⚑ ไม่ครบ 9</small>':''}
-      ${noout?'<small style="color:#b06a2c;font-weight:700">ลืมกดออก</small>':''}</div>`;
+      ${noout?'<small style="color:#b06a2c;font-weight:700">ลืมกดออก</small>':''}
+      <button class="mini" onclick="editTime('${d.d}','${d.in||''}','${d.out||''}')">✏️</button></div>`;
   }).join('')||'<small>ไม่มีข้อมูล</small>';
   const dv=document.createElement('div');
+  window._dtl.dv=dv;
   dv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;display:flex;align-items:flex-end;justify-content:center';
-  dv.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;max-height:80vh;overflow:auto;width:100%;max-width:520px;padding:18px"><h3>⏱ ${esc(name)} · ${m}</h3>${rows}<button class="btn" style="margin-top:12px" onclick="this.closest('div[style]').parentElement.remove()">ปิด</button></div>`;
+  dv.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;max-height:80vh;overflow:auto;width:100%;max-width:520px;padding:18px"><h3>⏱ ${esc(name)} · ${m}</h3>
+    <small style="display:block;margin-bottom:8px">กด ✏️ เพื่อแก้เวลาเข้า-ออกของวันนั้น (ต้องมีหลักฐาน)</small>
+    ${rows}
+    <button class="mini" style="margin-top:10px" onclick="editTimeAsk()">＋ เพิ่ม/แก้วันที่ไม่มีในรายการ</button>
+    <button class="btn" style="margin-top:12px" onclick="this.closest('div[style]').parentElement.remove()">ปิด</button></div>`;
   dv.onclick=e=>{if(e.target===dv)dv.remove();};
   document.body.appendChild(dv);}
+function editTimeAsk(){
+  const dd=prompt('วันที่ (1-31) ของเดือนที่เลือกอยู่');
+  if(!dd)return;
+  if(!/^\d{1,2}$/.test(dd.trim())||+dd<1||+dd>31){alert('ใส่เลขวันที่ 1-31');return;}
+  editTime(dd.trim()+'/xx','','');}
+async function editTime(dstr,curIn,curOut){
+  const m=$('rMonth').value;
+  const dateISO=m+'-'+dstr.split('/')[0].padStart(2,'0');
+  const i=prompt('เวลาเข้า (HH:MM เช่น 08:00) — เว้นว่างถ้าไม่แก้',curIn||'');
+  if(i===null)return;
+  const o=prompt('เวลาออก (HH:MM เช่น 18:00) — เว้นว่างถ้าไม่แก้',curOut||'');
+  if(o===null)return;
+  if(!i.trim()&&!o.trim()){alert('ไม่ได้ใส่เวลาอะไรเลย');return;}
+  const n=prompt('เหตุผล/หลักฐาน (จำเป็น) เช่น เห็นจากกล้อง, ใบเซ็นชื่อ');
+  if(n===null)return;
+  const {error}=await sb.rpc('core_time_fix',{p_emp:me.id,p_target:_dtl.id,p_date:dateISO,
+    p_in:i.trim()||null,p_out:o.trim()||null,p_note:n});
+  if(error){alert('แก้ไม่สำเร็จ: '+(error.message||''));return;}
+  toast('แก้เวลาแล้ว ✓');
+  if(_dtl.dv)_dtl.dv.remove();
+  await loadReport();
+  empDetail(_dtl.id,_dtl.name);}
 // ================= เงินเดือน =================
 let payData=[];
 const DOW=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
