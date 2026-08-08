@@ -38,6 +38,18 @@
   #printArea table{width:100%;border-collapse:collapse;margin-bottom:14px}#printArea th,#printArea td{border:1px solid #ccc;padding:5px 8px;text-align:left}
   #printArea th{background:#f0efe8}#printArea .r{text-align:right}
   #printArea .cards{display:flex;gap:10px;margin-bottom:12px}#printArea .cards div{flex:1;border:1px solid #ccc;border-radius:8px;padding:8px;text-align:center}#printArea .cards b{display:block;font-size:18px}
+  .vcard{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+  .vcard .vh{display:flex;align-items:center;gap:10px;padding:11px 15px}
+  .vcard .vh .nm{flex:1;min-width:0}.vcard .vh .nm b{display:block}
+  .vcard .vh .nm small{color:var(--muted);font-size:12px}
+  .vcard .vh .tot{font-size:18px;font-weight:700;color:var(--green-2);white-space:nowrap}
+  .vcard .vb{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:1px;background:var(--line);border-top:1px solid var(--line)}
+  .vcard .vb div{background:#fbfaf6;padding:8px 6px;text-align:center}
+  .vcard .vb span{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+  .vcard .vb b{font-size:14px}
+  .vcard.sum{border:1.5px solid var(--gold);background:#fffdf5}
+  .vcard.sum .vh .nm b{color:var(--green)}
+  .vcard.sum .vb div{background:#fdf8e9}
   @media print{body *{visibility:hidden}.printable,.printable *{visibility:visible}.printable{position:absolute;left:0;top:0;width:100%}button{display:none!important}}
 </style></head><body>
 
@@ -103,7 +115,7 @@ function quick(k){
   if(k==='month'){f=new Date(t.getFullYear(),t.getMonth(),1);$('qMonth').classList.add('on');}
   $('dFrom').value=iso(f);$('dTo').value=iso(to);load();
 }
-let profit=null,ext=[];
+let profit=null,ext=[],vb=[];
 async function bizHealth(){
   $('body').innerHTML='<div class="empty">กำลังตรวจสุขภาพ…</div>';
   const {data,error}=await sb.rpc('core_biz_health',{p_emp:me.id,p_days:30});
@@ -126,13 +138,17 @@ async function bizHealth(){
 }
 async function load(){
   $('body').innerHTML='<div class="empty">กำลังโหลด…</div>';
-  const [r1,r2,r3]=await Promise.all([
+  const [r1,r2,r3,r4]=await Promise.all([
     sb.rpc('core_owner_report',{p_emp:me.id,p_from:$('dFrom').value,p_to:$('dTo').value}),
     sb.rpc('core_owner_profit',{p_emp:me.id,p_from:$('dFrom').value,p_to:$('dTo').value}),
-    sb.rpc('core_owner_ext',{p_emp:me.id,p_from:$('dFrom').value,p_to:$('dTo').value})
+    sb.rpc('core_owner_ext',{p_emp:me.id,p_from:$('dFrom').value,p_to:$('dTo').value}),
+    sb.rpc('core_owner_venue_breakdown',{p_emp:me.id,p_from:$('dFrom').value,p_to:$('dTo').value})
   ]);
   if(r1.error||!r1.data){$('body').innerHTML='<div class="empty">'+esc(r1.error?r1.error.message:'โหลดไม่สำเร็จ')+'</div>';return;}
-  rep=r1.data;profit=r2.data||null;ext=r3.data||[];render();
+  rep=r1.data;profit=r2.data||null;ext=r3.data||[];
+  vb=(r4&&!r4.error&&Array.isArray(r4.data))?r4.data:[];
+  if(r4&&r4.error)console.warn('venue_breakdown:',r4.error.message);
+  render();
 }
 function render(){
   const pos=rep.pos_sales||[];
@@ -158,11 +174,32 @@ function render(){
       <div class="${net>=0?'up':'dn'}"><b>${baht(net)}</b><span>ส่วนต่าง (ขาย − ซื้อ)</span></div>
       <div class="dn"><b>−${baht(dmg.value)}</b><span>ของเสียอนุมัติ (${dmg.count} รายการ)</span></div>
     </div>
-    <div class="sec-h">ยอดขายแยกต่อร้าน</div>
-    ${venueRows}${restRow}
+    ${vb.length?vbHtml():('<div class="sec-h">ยอดขายแยกต่อร้าน</div>'+venueRows+restRow)}
     ${profitHtml()}
     <div class="sec-h">รายการซื้อเข้า (ค่าใช้จ่าย)</div>
     ${purRows}`;
+}
+function vbSum(k){return vb.reduce((s,x)=>s+Number(x[k]||0),0);}
+function vbCard(x,isSum){
+  const other=Number(x.other||0),dis=Number(x.discount||0);
+  const cell=(l,v,c)=>'<div><span>'+l+'</span><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b></div>';
+  return '<div class="vcard'+(isSum?' sum':'')+'">'
+    +'<div class="vh"><div class="nm"><b>'+esc(x.venue)+'</b><small>'+Number(x.bills||0).toLocaleString('th-TH')+' บิล</small></div>'
+    +'<div class="tot">'+baht(x.total)+'</div></div>'
+    +'<div class="vb">'
+      +cell('เงินสด',baht(x.cash))
+      +cell('เงินโอน',baht(x.transfer))
+      +(other>0?cell('อื่นๆ',baht(other)):'')
+      +cell('ส่วนลด',dis>0?'−'+baht(dis):'—',dis>0?'var(--danger)':'var(--muted)')
+    +'</div></div>';
+}
+function vbHtml(){
+  if(!vb.length)return '';
+  const tot={venue:'รวมทุกร้าน',bills:vbSum('bills'),total:vbSum('total'),
+    cash:vbSum('cash'),transfer:vbSum('transfer'),other:vbSum('other'),discount:vbSum('discount')};
+  return '<div class="sec-h">ยอดขายแยกต่อร้าน</div>'
+    +vbCard(tot,true)
+    +vb.map(x=>vbCard(x,false)).join('');
 }
 function profitHtml(){
   if(!profit)return '';
@@ -185,15 +222,19 @@ function profitHtml(){
 function printReport(){
   if(!rep)return;
   const pos=rep.pos_sales||[];const rest=rep.rest_sales||{};const pur=rep.purchases||{list:[]};
-  const salesTotal=pos.reduce((s,x)=>s+Number(x.total||0),0)+Number(rest.total||0);
+  const salesTotal=vb.length?vbSum('total'):(pos.reduce((s,x)=>s+Number(x.total||0),0)+Number(rest.total||0));
   const net=salesTotal-Number(pur.total||0);
-  const vrows=pos.map(v=>`<tr><td>${esc(v.venue)}</td><td class="r">${v.bills}</td><td class="r">${baht(v.total)}</td></tr>`).join('')
-    +`<tr><td>ห้องอาหาร</td><td class="r">${rest.bills||0}</td><td class="r">${baht(rest.total)}</td></tr>`;
+  const nz=n=>Number(n||0)>0;
+  const vrows=vb.length
+    ? vb.map(v=>`<tr><td>${esc(v.venue)}</td><td class="r">${Number(v.bills||0)}</td><td class="r">${baht(v.cash)}</td><td class="r">${baht(v.transfer)}</td><td class="r">${nz(v.other)?baht(v.other):'—'}</td><td class="r">${nz(v.discount)?'−'+baht(v.discount):'—'}</td><td class="r"><b>${baht(v.total)}</b></td></tr>`).join('')
+      +`<tr style="background:#f7f5ec"><th>รวมทุกร้าน</th><th class="r">${vbSum('bills')}</th><th class="r">${baht(vbSum('cash'))}</th><th class="r">${baht(vbSum('transfer'))}</th><th class="r">${nz(vbSum('other'))?baht(vbSum('other')):'—'}</th><th class="r">${nz(vbSum('discount'))?'−'+baht(vbSum('discount')):'—'}</th><th class="r">${baht(vbSum('total'))}</th></tr>`
+    : pos.map(v=>`<tr><td>${esc(v.venue)}</td><td class="r">${v.bills}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">${baht(v.total)}</td></tr>`).join('')
+      +`<tr><td>ห้องอาหาร</td><td class="r">${rest.bills||0}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">${baht(rest.total)}</td></tr>`;
   const prows=(pur.list||[]).map(p=>{const dt=new Date(p.at);return `<tr><td>${p.po?esc(p.po):'—'}</td><td>${esc(p.supplier||'-')}</td><td>${dt.toLocaleDateString('th-TH')}</td><td class="r">${baht(p.total)}</td></tr>`;}).join('')||'<tr><td colspan="4" style="text-align:center">ไม่มี</td></tr>';
   $('printArea').innerHTML=`<h2>Royal Creek — รายงานรวม</h2>
     <div class="sub">ช่วง ${$('dFrom').value} ถึง ${$('dTo').value} · พิมพ์ ${new Date().toLocaleString('th-TH')}</div>
     <div class="cards"><div><b>${baht(salesTotal)}</b>ยอดขายรวม</div><div><b>${baht(pur.total)}</b>ยอดซื้อเข้า</div><div><b>${baht(net)}</b>ส่วนต่าง</div></div>
-    <table><thead><tr><th>ร้าน</th><th class="r">บิล</th><th class="r">ยอดขาย</th></tr></thead><tbody>${vrows}</tbody></table>
+    <table><thead><tr><th>ร้าน</th><th class="r">บิล</th><th class="r">เงินสด</th><th class="r">เงินโอน</th><th class="r">อื่นๆ</th><th class="r">ส่วนลด</th><th class="r">ยอดขาย</th></tr></thead><tbody>${vrows}</tbody></table>
     <table><thead><tr><th>PO</th><th>ซัพพลายเออร์</th><th>วันที่</th><th class="r">ยอดซื้อ</th></tr></thead><tbody>${prows}</tbody></table>`;
   const win=window.open('','_blank');
   if(!win){alert('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต popup ให้เว็บนี้');return;}
