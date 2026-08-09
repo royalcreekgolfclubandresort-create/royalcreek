@@ -748,9 +748,10 @@ function reprintBill(b){
 function printDoc(title,inner,receipt){
   const win=window.open('','_blank');
   if(!win){toast('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต popup ให้เว็บนี้');return;}
+  const rcCss=receipt?`<style>.ch2{font-size:18px!important}.tt{font-size:18px!important}.rr,.cc{font-size:15px!important}</style>${rcCss}`:'';
   win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>${title}</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>${receipt?'@page{size:78mm 120mm;margin:3mm}':''}body{font-family:'Sarabun',sans-serif;color:#000;margin:${receipt?'0':'16px'};${receipt?'width:72mm;font-size:14px':''}}
+  <style>${receipt?'@page{size:50.8mm 127mm;margin:0}':''}body{font-family:'Sarabun',sans-serif;color:#000;margin:${receipt?'0':'16px'};${receipt?'width:50.8mm;padding:1.5mm;box-sizing:border-box;font-size:16px;font-weight:600':''}}
   h2{text-align:center;margin:0 0 2px}.sub{text-align:center;color:#555;margin-bottom:12px;font-size:12px}
   table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ccc;padding:5px 8px;text-align:left}
   th{background:#f0efe8}.r{text-align:right}.c{text-align:center}
