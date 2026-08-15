@@ -419,6 +419,22 @@ function slipTotalBill(){
 }
 function slipSum(){return slipList.reduce((s,x)=>s+(Number(x.amount)||0),0);}
 
+/* ลายนิ้วมือของรูป — ใช้จับสลิปซ้ำแม้ AI อ่านเลขอ้างอิงไม่ออก
+   คำนวณจากไฟล์รูปที่ย่อแล้ว รูปเดียวกันจะได้ค่าเดียวกันเสมอ */
+async function slipHash(blob){
+  try{
+    const buf=await blob.arrayBuffer();
+    if(crypto&&crypto.subtle&&crypto.subtle.digest){
+      const h=await crypto.subtle.digest('SHA-256',buf);
+      return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    /* สำรอง: เครื่องเก่าที่ไม่รองรับ SHA-256 */
+    const u=new Uint8Array(buf); let a=5381,b=52711;
+    for(let i=0;i<u.length;i++){ a=(a*33^u[i])>>>0; b=(b*31^u[u.length-1-i])>>>0; }
+    return 'fb'+a.toString(16)+b.toString(16)+'_'+u.length;
+  }catch(e){ return null; }
+}
+
 /* ย่อรูปก่อนส่ง ประหยัดเน็ตและพื้นที่เก็บ */
 function slipToJpeg(f,maxDim,q){return new Promise((res,rej)=>{
   const img=new Image(), u=URL.createObjectURL(f);
@@ -441,7 +457,9 @@ function paintSlip(){
   const flags=slipFlags();
   const rows=slipList.length?slipList.map((x,i)=>{
     const warn=[];
-    if(x.dup_of)warn.push('🔴 เลขอ้างอิงนี้เคยใช้กับบิล '+esc(x.dup_of)+' แล้ว');
+    if(x.dup_of)warn.push(x.dup_kind==='img'
+      ? '🔴 รูปสลิปใบนี้เคยใช้กับบิล '+esc(x.dup_of)+' แล้ว (รูปเดียวกันเป๊ะ)'
+      : '🔴 เลขอ้างอิงนี้เคยใช้กับบิล '+esc(x.dup_of)+' แล้ว');
     if(x.old_day)warn.push('🟠 วันที่บนสลิปไม่ใช่วันนี้');
     if(x.ai_ok===false)warn.push('🟠 AI อ่านยอดไม่ชัด กรุณาตรวจ');
     return `<div style="border:1.5px solid ${x.dup_of?'var(--danger)':'var(--line)'};border-radius:13px;padding:10px;margin-bottom:9px;background:${x.dup_of?'#faece9':'#fbfaf5'}">
@@ -558,7 +576,7 @@ async function slipPick(el){
     const prepped=[];
     for(const f of files){
       const r=await slipToJpeg(f,1400,0.8);
-      prepped.push({blob:r.blob,b64:r.b64,url:URL.createObjectURL(r.blob)});
+      prepped.push({blob:r.blob,b64:r.b64,url:URL.createObjectURL(r.blob),hash:await slipHash(r.blob)});
     }
     /* ให้ AI อ่านทุกใบในครั้งเดียว */
     let read=[];
@@ -585,7 +603,7 @@ async function slipPick(el){
         if(!isNaN(d)){ const dd=new Date(d); dd.setHours(0,0,0,0);
           oldDay=(dd.getTime()!==today.getTime()); } }
       slipList.push({
-        blob:p.blob, url:p.url, b64:p.b64,
+        blob:p.blob, url:p.url, b64:p.b64, hash:p.hash,
         amount:(r.amount!=null&&!isNaN(Number(r.amount)))?Number(r.amount):null,
         ref:r.ref||null, date_txt:r.date_txt||null, time_txt:r.time_txt||null,
         date_iso:r.date_iso||null, bank:r.bank||null, payer:r.payer||null, payee:r.payee||null,
@@ -594,17 +612,7 @@ async function slipPick(el){
       });
     });
 
-    /* เช็คเลขอ้างอิงซ้ำกับที่เคยรับมาแล้ว */
-    const refs=slipList.map(x=>x.ref).filter(Boolean);
-    if(refs.length){
-      try{
-        const {data}=await sb.rpc('core_pos_slip_check',{p_emp:me.id,p_refs:refs});
-        (data||[]).forEach(d=>{
-          const hit=slipList.find(x=>x.ref&&x.ref.trim().toUpperCase()===String(d.ref).trim().toUpperCase());
-          if(hit)hit.dup_of=d.used_bill;
-        });
-      }catch(e){}
-    }
+    await slipDupCheck();
   }catch(e){ toast('เพิ่มรูปไม่สำเร็จ: '+(e.message||e)); }
   slipBusy=false;
   paintSlip();
@@ -617,6 +625,30 @@ async function slipSkip(){
   await doCheckout({slips:[],flags:['skipped'],reason:'ช่วงทดลอง — พนักงานกดข้าม'});
   slipList=[];
 }
+/* เช็คซ้ำ 2 ทาง: เลขอ้างอิง + ลายนิ้วมือรูป
+   ทางที่สองสำคัญมาก เพราะถ้ารูปเบลอจน AI อ่านเลขไม่ออก
+   ตัวจับซ้ำแบบเดิมจะไม่ทำงานเลย = ลูกค้าเอาสลิปเดิมมาใช้ซ้ำได้ */
+async function slipDupCheck(){
+  const refs=slipList.map(x=>x.ref).filter(Boolean);
+  const hashes=slipList.map(x=>x.hash).filter(Boolean);
+  slipList.forEach(x=>{x.dup_of=null;x.dup_kind=null;});
+  if(!refs.length && !hashes.length)return;
+  try{
+    const {data,error}=await sb.rpc('core_pos_slip_check2',
+      {p_emp:me.id,p_refs:refs,p_hashes:hashes});
+    if(error)throw error;
+    (data||[]).forEach(d=>{
+      let hit=null;
+      if(d.kind==='img')hit=slipList.find(x=>x.hash===d.key);
+      else hit=slipList.find(x=>x.ref&&String(x.ref).trim().toUpperCase()===String(d.key).trim().toUpperCase());
+      if(hit && !hit.dup_of){
+        hit.dup_of=d.used_bill+(d.used_venue?' ('+d.used_venue+')':'');
+        hit.dup_kind=d.kind;
+      }
+    });
+  }catch(e){}
+}
+
 /* ให้ AI อ่านรูปที่แนบไว้แล้วอีกครั้ง (ไม่ต้องถ่ายใหม่) */
 async function slipRetry(){
   const imgs=slipList.filter(x=>x.b64);
@@ -646,12 +678,7 @@ async function slipRetry(){
         if(!isNaN(d)){const dd=new Date(d);dd.setHours(0,0,0,0);x.old_day=(dd.getTime()!==today.getTime());}}
       x.ai_ok=(r.confident===false||r.amount==null)?false:true;
     });
-    const refs=slipList.map(x=>x.ref).filter(Boolean);
-    if(refs.length){try{
-      const {data}=await sb.rpc('core_pos_slip_check',{p_emp:me.id,p_refs:refs});
-      (data||[]).forEach(d=>{const hit=slipList.find(x=>x.ref&&x.ref.trim().toUpperCase()===String(d.ref).trim().toUpperCase());
-        if(hit)hit.dup_of=d.used_bill;});
-    }catch(e){}}
+    await slipDupCheck();
   }catch(e){ slipErr=e.message||String(e); }
   slipBusy=false; paintSlip();
 }
@@ -684,7 +711,7 @@ async function slipConfirm(){
     out.push({ref:x.ref||'',amount:x.amount!=null?x.amount:0,
       slip_at:x.date_iso||'',slip_at_txt:((x.date_txt||'')+' '+(x.time_txt||'')).trim(),
       bank:x.bank||'',payer:x.payer||'',payee:x.payee||'',
-      img_url:url||'',dup_of:x.dup_of||'',ai_ok:x.ai_ok!==false});
+      img_url:url||'',dup_of:x.dup_of||'',img_hash:x.hash||'',ai_ok:x.ai_ok!==false});
   }
   if(slipList.length && upOk===0){
     flags=flags.concat(['noimg']);
@@ -1086,6 +1113,25 @@ async function setSlipMode(m){
 /* หาบิลที่จ่ายแบบโอนแต่ไม่มีบันทึกสลิปเลย
    กรณีนี้เกิดได้เมื่อเครื่องพนักงานยังใช้หน้าเว็บเวอร์ชันเก่าอยู่ (ไม่ได้รีเฟรช)
    ถ้าไม่ตรวจแบบนี้ บิลพวกนั้นจะไม่โผล่ในรายงานเลย = มองไม่เห็นช่องโหว่ */
+/* หาเลขบิลที่มีสลิปบันทึกซ้ำกันเองในร้านเดียวกัน
+   เกิดได้เมื่อเลขบิลวนกลับมาใช้ใหม่หลังลบบิล หรือบันทึกซ้ำ */
+async function findDupBills(from,to){
+  const box=$('spDup'); if(!box)return;
+  try{
+    const {data,error}=await sb.rpc('core_pos_slip_dup_bills',{p_emp:me.id,p_from:from,p_to:to});
+    if(error)throw error;
+    const d=data||[];
+    if(!d.length){box.innerHTML='';return;}
+    box.innerHTML=`<div style="background:#f6efd9;border:1.5px solid #d9a441;border-radius:13px;padding:11px 13px;margin-bottom:12px">
+      <b style="color:#8a6d1f;font-size:15px">⚠️ เลขบิลซ้ำ ${d.length} เลข</b>
+      <div style="font-size:12px;color:var(--muted);margin:4px 0 8px">
+        เลขบิลเดียวกันในร้านเดียวกัน มีบันทึกสลิปมากกว่า 1 ครั้ง · มักเกิดจากลบบิลแล้วเลขวนกลับมาใช้ใหม่ ให้เปิดดูว่าเป็นคนละรายการจริงไหม
+      </div>
+      ${d.map(x=>`<div class="row"><div class="nm"><b>${esc(x.bill_no)}</b><small>ร้าน ${esc(x.venue||'-')}</small></div><span style="color:var(--muted)">${x.n} ครั้ง</span><b>${baht(x.total)}</b></div>`).join('')}
+    </div>`;
+  }catch(e){ box.innerHTML=''; }
+}
+
 async function findMissingSlips(from,to){
   const box=$('spGap'); if(!box)return;
   try{
@@ -1102,7 +1148,7 @@ async function findMissingSlips(from,to){
     for(const day of days){
       const [rep,slp]=await Promise.all([
         sb.rpc('core_pos_report',{p_venue:venue.code,p_date:day}),
-        sb.rpc('core_pos_slip_bills',{p_emp:me.id,p_date:day})
+        sb.rpc('core_pos_slip_bills',{p_emp:me.id,p_date:day,p_venue:venue.code})
       ]);
       const bills=((rep.data||{}).bills)||[];
       const have=new Set(((slp.data)||[]).map(x=>String(x.bill_no).trim()));
@@ -1184,7 +1230,7 @@ async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(t), e=to||iso(t);   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 12 · ทุกคนที่ขายได้ แนบได้ ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 13 · กันบิลซ้ำ + จับรูปซ้ำ ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1269,8 +1315,8 @@ async function slipReport(from,to,all,showVoid){
       <b>บิลของ ${esc(data.my_name||me.name)}</b> · ย้อนหลังได้ 7 วัน
       <div style="color:var(--muted);margin-top:3px">ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งผู้จัดการว่าเกิดอะไรขึ้น · แก้ไขเองไม่ได้</div></div>`:'';
     $('spBody').innerHTML=filterNote+scopeNote+staff+
-      `<div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
-    if(data.scope!=='mine')findMissingSlips(f,e);
+      `<div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
+    if(data.scope!=='mine'){ findMissingSlips(f,e); findDupBills(f,e); }
   }catch(e){ $('spBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
 }
 
