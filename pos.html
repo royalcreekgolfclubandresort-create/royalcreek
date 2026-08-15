@@ -470,9 +470,8 @@ function paintSlip(){
         ${x.url?`<img src="${x.url}" style="width:62px;height:82px;object-fit:cover;border-radius:9px;border:1px solid var(--line);flex:none" onclick="slipZoom(${i})">`:'<div style="width:62px;height:82px;border-radius:9px;background:#eee;flex:none"></div>'}
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
-            <span style="font-size:12px;color:var(--muted)">ยอด</span>
-            <input class="in" style="height:40px;font-size:19px;font-weight:800;text-align:right;padding:0 9px" type="number" inputmode="decimal"
-                   value="${x.amount!=null?x.amount:''}" oninput="slipEdit(${i},'amount',this.value)">
+            <span style="font-size:12px;color:var(--muted)">🤖 AI อ่านได้</span>
+            <b style="flex:1;text-align:right;font-size:21px;${x.amount==null?'color:var(--danger)':''}">${x.amount!=null?baht(x.amount):'อ่านไม่ได้'}</b>
             <button class="mini" style="flex:none;color:var(--danger)" onclick="slipDel(${i})">ลบ</button>
           </div>
           <div style="font-size:12px;color:var(--muted);line-height:1.55">
@@ -513,6 +512,8 @@ function paintSlip(){
         <button class="mini" style="flex:1;height:52px;border:1.5px dashed var(--green-2);color:var(--green-2);font-weight:700;font-size:14px" onclick="document.getElementById('slipLib').click()">🖼️ แนบรูป</button>
       </div>
       <div style="font-size:11.5px;color:var(--muted);text-align:center;margin:-4px 0 10px">แนบรูป = เลือกจากคลังรูป / ไฟล์ที่บันทึกไว้ (เลือกทีเดียวหลายใบได้)</div>`:''}
+    ${slipList.some(x=>x.amount==null)?`<div style="background:#f6efd9;border:1px solid #d9a441;border-radius:11px;padding:9px 12px;font-size:12px;color:#8a6d1f;margin-bottom:10px">
+      มีสลิปที่ AI อ่านยอดไม่ได้ · <b>แก้ตัวเลขเองไม่ได้</b> — ให้ถ่ายใหม่ให้ชัดแล้วกด "ให้ AI ลองอ่านใหม่" หรือยืนยันไปพร้อมเหตุผล แล้วคนตรวจสลิปจะเป็นคนตัดสิน</div>`:''}
     <div id="slipBusy" style="display:none;text-align:center;font-size:13px;color:var(--muted);margin-bottom:10px">🤖 AI กำลังอ่านสลิป…</div>
     ${slipErr?`<div style="background:#faece9;border:1.5px solid var(--danger);border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:12.5px">
       <b style="color:var(--danger)">🤖 AI อ่านไม่สำเร็จ</b>
@@ -560,7 +561,9 @@ function slipReasonChg(){
   txt.style.display=(sel.value==='__other')?'':'none';
   if(sel.value==='__other')txt.focus();
 }
-function slipEdit(i,k,v){ if(!slipList[i])return; slipList[i][k]=(v===''?null:Number(v)); paintSlip(); }
+/* ไม่มีฟังก์ชันแก้ยอด — ตัวเลขที่ AI อ่านห้ามแก้เด็ดขาด
+   ถ้า AI อ่านผิดหรืออ่านไม่ได้ ให้ถ่ายใหม่แล้วกดอ่านใหม่
+   หรือยืนยันไปพร้อมเหตุผล แล้วให้คนตรวจสลิปเป็นคนตัดสิน */
 function slipDel(i){ slipList.splice(i,1); paintSlip(); }
 function slipZoom(i){
   const x=slipList[i]; if(!x||!x.url)return;
@@ -711,7 +714,7 @@ async function slipConfirm(){
       }catch(e){ upErr=e.message||String(e); }
     }
     if(url)upOk++;
-    out.push({ref:x.ref||'',amount:x.amount!=null?x.amount:0,
+    out.push({ref:x.ref||'',amount:x.amount!=null?x.amount:0,ai_amount:x.amount!=null?x.amount:null,
       slip_at:x.date_iso||'',slip_at_txt:((x.date_txt||'')+' '+(x.time_txt||'')).trim(),
       bank:x.bank||'',payer:x.payer||'',payee:x.payee||'',
       img_url:url||'',dup_of:x.dup_of||'',img_hash:x.hash||'',ai_ok:x.ai_ok!==false});
@@ -1052,7 +1055,7 @@ async function saveSince(){
     if(error)throw error;
     slipSince=v;
     toast('ตั้งวันเริ่มใช้ระบบเป็น '+v);
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
   }catch(e){ toast('บันทึกไม่สำเร็จ: '+(e.message||e)); }
 }
 
@@ -1197,11 +1200,55 @@ function spQuick(n){
   if(n===0){ f=e=iso(t); }
   else if(n===1){ const y=new Date(t.getTime()-86400000); f=e=iso(y); }
   else { f=iso(new Date(t.getTime()-n*86400000)); e=iso(t); }
-  const a=spArgs(); slipReport(f,e,a[2],a[3]);
+  const a=spArgs(); slipReport(f,e,a[2],a[3],a[4]);
 }
 
+let spReview='pending';
 function spArgs(){return [$('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
-  $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false];}
+  $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false, spReview];}
+
+const RVNAME={pending:'รอตรวจ',ok:'ผ่าน',chase:'ต้องตามเก็บ',loss:'เสียหาย'};
+const RVCOLOR={pending:'#8a6d1f',ok:'var(--ok)',chase:'#8a6d1f',loss:'var(--danger)'};
+
+function reviewBox(r){
+  if(!canAuditSlip)return r.review&&r.review!=='pending'
+    ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:7px">
+         สถานะ: <b style="color:${RVCOLOR[r.review]}">${RVNAME[r.review]||r.review}</b>${r.review_by?' · โดย '+esc(r.review_by):''}
+         ${r.review_note?'<br>📝 '+esc(r.review_note):''}</div>`
+    : '';
+  if(!(r.flags||[]).length)return '';   /* ไม่มีธง = ไม่ต้องตรวจ */
+
+  const done=r.review&&r.review!=='pending';
+  const noPass=!r.can_pass;
+  return `<div style="margin-top:9px;border-top:1px solid var(--line);padding-top:9px">
+    ${done?`<div style="font-size:12.5px;margin-bottom:7px">
+        สถานะ: <b style="color:${RVCOLOR[r.review]}">${RVNAME[r.review]||r.review}</b>
+        ${r.review_by?' · '+esc(r.review_by):''}${r.review_self?' <span class="pill pending">ตรวจงานตัวเอง</span>':''}
+        ${r.review_note?'<br><span style="color:var(--muted)">📝 '+esc(r.review_note)+'</span>':''}
+      </div>`:''}
+    ${noPass?`<div style="background:#faece9;border:1px solid var(--danger);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--danger);margin-bottom:7px">
+        🔒 สลิปซ้ำ — <b>กดผ่านไม่ได้ทุกกรณี</b> ต้องเลือกตามเก็บ หรือ เสียหาย</div>`:''}
+    <input class="in" id="rn_${r.id}" placeholder="บันทึกว่าตรวจอะไรไป (จำเป็น)" style="height:42px;font-size:13px;margin-bottom:7px" value="${esc(r.review_note||'')}">
+    <div style="display:flex;gap:6px">
+      ${noPass?'':`<button class="mini" style="flex:1;height:42px;background:#e4f0e9;color:var(--ok);font-weight:700" onclick="doReview('${r.id}','ok')">✅ ผ่าน</button>`}
+      <button class="mini" style="flex:1;height:42px;background:#f6efd9;color:#8a6d1f;font-weight:700" onclick="doReview('${r.id}','chase')">⏳ ตามเก็บ</button>
+      <button class="mini" style="flex:1;height:42px;background:#faece9;color:var(--danger);font-weight:700" onclick="doReview('${r.id}','loss')">❌ เสียหาย</button>
+      ${done?`<button class="mini" style="flex:0 0 46px;height:42px" onclick="doReview('${r.id}','pending')" title="คืนกลับรอตรวจ">↩</button>`:''}
+    </div></div>`;
+}
+
+async function doReview(id,status){
+  const el=$('rn_'+id); const note=el?(el.value||'').trim():'';
+  if(status!=='pending' && !note){toast('เขียนบันทึกก่อนว่าตรวจอะไรไป');if(el)el.focus();return;}
+  const NAME={ok:'ผ่าน',chase:'ต้องตามเก็บ',loss:'เสียหาย',pending:'คืนกลับรอตรวจ'};
+  if(status==='loss' && !confirm('ตัดเป็นความเสียหาย?\n\nยอดนี้จะไปรวมในสรุปยอดเสียหาย'))return;
+  try{
+    const {error}=await sb.rpc('core_pos_slip_review',{p_emp:me.id,p_id:id,p_status:status,p_note:note||null});
+    if(error)throw error;
+    toast('บันทึกแล้ว: '+NAME[status]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
+  }catch(e){ alert('บันทึกไม่สำเร็จ\n\n'+(e.message||e)); }
+}
 
 async function delSlipRow(id,billNo){
   if(!confirm('ลบรายการตรวจสลิปของบิล '+billNo+'?\n\nลบถาวร กู้คืนไม่ได้\n(ไม่กระทบยอดขาย — ลบเฉพาะบันทึกการตรวจสลิป)'))return;
@@ -1209,7 +1256,7 @@ async function delSlipRow(id,billNo){
     const {error}=await sb.rpc('core_pos_slip_delete',{p_emp:me.id,p_id:id});
     if(error)throw error;
     toast('ลบแล้ว');
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
   }catch(e){ toast('ลบไม่สำเร็จ: '+(e.message||e)); }
 }
 
@@ -1225,15 +1272,17 @@ async function purgeSlips(mode){
     const {data:d,error}=await sb.rpc('core_pos_slip_purge',{p_emp:me.id,p_from:f,p_to:t,p_mode:mode});
     if(error)throw error;
     toast('ลบไปแล้ว '+d+' รายการ');
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
   }catch(e){ toast('ลบไม่สำเร็จ: '+(e.message||e)); }
 }
 
-async function slipReport(from,to,all,showVoid){
+async function slipReport(from,to,all,showVoid,review){
+  const rv=review||spReview||'pending';
+  spReview=rv;
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(t), e=to||iso(t);   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 14 · สิทธิ์ตรวจแยก + เห็นทั้งซุ้ม ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 15 · ปุ่มตรวจ + ล็อกตัวเลข AI ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1268,6 +1317,10 @@ async function slipReport(from,to,all,showVoid){
     </div>
     <div class="togg"><input type="checkbox" id="spAll" ${all?'checked':''} onchange="slipReport($('spF').value,$('spT').value,this.checked,$('spVoid').checked)">
       <span>แสดงทุกบิล (ไม่ใช่เฉพาะที่มีปัญหา)</span></div>
+    ${canAuditSlip?`<div style="display:flex;gap:6px;margin-bottom:10px">
+      ${[['pending','รอตรวจ'],['chase','รอตามเก็บ'],['done','ตรวจแล้ว'],['all','ทั้งหมด']].map(([k,l])=>
+        `<button class="mini" style="flex:1;height:40px;font-size:12.5px;${(rv===k)?'background:var(--green-2);color:#fff':''}" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid')?$('spVoid').checked:false,'${k}')">${l}</button>`).join('')}
+    </div>`:''}
     ${canAuditSlip?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="slipReport($('spF').value,$('spT').value,$('spAll').checked,this.checked)">
       <span>แสดงบิลที่ลบไปแล้วด้วย</span></div>`:''}
     <button class="mini" style="width:100%;height:44px;margin-bottom:12px" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid').checked)">🔍 ดูรายการ</button>
@@ -1282,7 +1335,7 @@ async function slipReport(from,to,all,showVoid){
       </div></div>`:''}
     <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
   try{
-    const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid});
+    const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid,p_review:rv});
     if(error)throw error;
     const rows=data.rows||[], by=data.by_staff||[];
     const staff=(by.length&&data.can_audit)?`<div class="sec-h">สรุปคนกดผ่าน</div>`+by.map(x=>
@@ -1307,8 +1360,9 @@ async function slipReport(from,to,all,showVoid){
           ${me.isOwner?`<button class="mini" style="flex:none;color:var(--danger);padding:2px 8px" onclick="delSlipRow('${r.id}','${esc(r.bill_no)}')">🗑</button>`:''}</div>
         <div style="margin:6px 0">${tags}</div>
         <div style="font-size:13px">สลิปรวม ${baht(r.slip_total)}${Math.abs(Number(r.diff))>=0.01?` · <b style="color:var(--danger)">${Number(r.diff)>0?'ขาด '+baht(r.diff):'เกิน '+baht(-r.diff)}</b>`:''}</div>
-        ${r.reason?`<div style="font-size:12.5px;background:#f6efd9;border-radius:8px;padding:6px 9px;margin-top:6px">💬 ${esc(r.reason)}</div>`:''}
-        <div style="margin-top:6px">${its}</div></div>`;}).join(''):'<div class="empty">ไม่พบรายการ 🎉</div>';
+        ${r.reason?`<div style="font-size:12.5px;background:#f6efd9;border-radius:8px;padding:6px 9px;margin-top:6px">💬 พนักงาน: ${esc(r.reason)}</div>`:''}
+        <div style="margin-top:6px">${its}</div>
+        ${reviewBox(r)}</div>`;}).join(''):'<div class="empty">ไม่พบรายการ 🎉</div>';
     const vc=Number(data.voided_count)||0;
     const vnote=(vc&&!showVoid&&data.can_audit)?`<div style="font-size:12px;color:var(--muted);background:#f4f4f2;border-radius:9px;padding:7px 10px;margin-bottom:9px">ซ่อนบิลที่ถูกลบไปแล้วอยู่ ${vc} ใบ · ติ๊กช่องด้านบนถ้าอยากดู</div>`:'';
     const filterNote=(!all && !rows.length)?`<div style="background:#f6efd9;border:1px solid #d9a441;border-radius:11px;padding:9px 12px;font-size:12.5px;color:#8a6d1f;margin-bottom:11px">
@@ -1318,7 +1372,18 @@ async function slipReport(from,to,all,showVoid){
     const scopeNote=(!data.can_audit)?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
       <b>สลิปของซุ้ม ${esc(vtxt)}</b> · ย้อนหลังได้ 7 วัน
       <div style="color:var(--muted);margin-top:3px">เห็นทุกบิลของซุ้ม รวมวันที่คนอื่นมาทำแทน · ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งคนตรวจสลิป · แก้ไขเองไม่ได้</div></div>`:'';
-    $('spBody').innerHTML=filterNote+scopeNote+staff+
+    const c=data.counts||{};
+    const cntNote=data.can_audit?`<div style="display:flex;gap:7px;margin-bottom:11px;flex-wrap:wrap">
+      <div style="flex:1;min-width:76px;background:#f6efd9;border-radius:10px;padding:7px 9px;text-align:center">
+        <b style="font-size:19px;color:#8a6d1f">${c.pending||0}</b><div style="font-size:11px;color:var(--muted)">รอตรวจ</div></div>
+      <div style="flex:1;min-width:76px;background:#f6efd9;border-radius:10px;padding:7px 9px;text-align:center">
+        <b style="font-size:19px;color:#8a6d1f">${c.chase||0}</b><div style="font-size:11px;color:var(--muted)">ตามเก็บ ${baht(c.chase_amt||0)}</div></div>
+      <div style="flex:1;min-width:76px;background:#e4f0e9;border-radius:10px;padding:7px 9px;text-align:center">
+        <b style="font-size:19px;color:var(--ok)">${c.ok||0}</b><div style="font-size:11px;color:var(--muted)">ผ่านแล้ว</div></div>
+      <div style="flex:1;min-width:76px;background:#faece9;border-radius:10px;padding:7px 9px;text-align:center">
+        <b style="font-size:19px;color:var(--danger)">${c.loss||0}</b><div style="font-size:11px;color:var(--muted)">เสียหาย ${baht(c.loss_amt||0)}</div></div>
+    </div>`:'';
+    $('spBody').innerHTML=cntNote+filterNote+scopeNote+staff+
       `<div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
     canAuditSlip=!!data.can_audit;
     if(data.can_audit){ findMissingSlips(f,e); findDupBills(f,e); }
