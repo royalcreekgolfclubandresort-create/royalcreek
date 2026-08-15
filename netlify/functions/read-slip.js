@@ -47,7 +47,39 @@ exports.handler = async (event) => {
     return { statusCode: 500, body: JSON.stringify({ error: 'ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน Netlify' }) };
 
   try {
-    const { images } = JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
+
+    /* โหมดทดสอบ: {"ping":true} — ตรวจว่าฟังก์ชันขึ้นแล้วและ API key ใช้งานได้ */
+    if (body.ping) {
+      try {
+        const t = Date.now();
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: process.env.SLIP_MODEL || 'claude-haiku-4-5-20251001',
+            max_tokens: 16,
+            messages: [{ role: 'user', content: 'ตอบคำว่า OK คำเดียว' }]
+          })
+        });
+        const rj = await r.json();
+        return {
+          statusCode: 200,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            ok: r.ok,
+            ms: Date.now() - t,
+            model: process.env.SLIP_MODEL || 'claude-haiku-4-5-20251001',
+            reply: r.ok ? (rj.content || []).map(b => b.text || '').join('') : null,
+            error: r.ok ? null : ((rj.error && rj.error.message) || ('HTTP ' + r.status))
+          })
+        };
+      } catch (e) {
+        return { statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) };
+      }
+    }
+
+    const images = body.images;
     if (!Array.isArray(images) || images.length === 0)
       return { statusCode: 400, body: JSON.stringify({ error: 'ไม่มีรูปส่งมา' }) };
 
@@ -61,7 +93,12 @@ exports.handler = async (event) => {
     });
     content.push({ type: 'text', text: PROMPT });
 
+    const t0 = Date.now();
+    const ctl = new AbortController();
+    const killer = setTimeout(() => ctl.abort(), 8500);   // ตัดเองก่อน Netlify ตัดที่ 10 วิ
+
     const rs = await fetch('https://api.anthropic.com/v1/messages', {
+      signal: ctl.signal,
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -69,11 +106,16 @@ exports.handler = async (event) => {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
+        // Haiku เร็วกว่ามาก — สำคัญเพราะ Netlify ตัดการทำงานที่ 10 วินาที
+        // เปลี่ยนรุ่นได้โดยตั้ง env var SLIP_MODEL ใน Netlify
+        model: process.env.SLIP_MODEL || 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
         messages: [{ role: 'user', content }]
       })
     });
+
+    clearTimeout(killer);
+    const ms = Date.now() - t0;
 
     const j = await rs.json();
     if (!rs.ok)
@@ -86,16 +128,24 @@ exports.handler = async (event) => {
     try { out = JSON.parse(text); }
     catch (e) {
       const m = text.match(/\{[\s\S]*\}/);
-      if (!m) return { statusCode: 502, body: JSON.stringify({ error: 'AI ตอบไม่เป็น JSON' }) };
+      if (!m) return { statusCode: 502, body: JSON.stringify({ error: 'AI ตอบไม่เป็น JSON', raw: text.slice(0, 400) }) };
       out = JSON.parse(m[0]);
     }
 
     return {
       statusCode: 200,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ slips: Array.isArray(out.slips) ? out.slips : [] })
+      body: JSON.stringify({
+        slips: Array.isArray(out.slips) ? out.slips : [],
+        _ms: ms,
+        _model: process.env.SLIP_MODEL || 'claude-haiku-4-5-20251001',
+        _n: images.length
+      })
     };
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+    const msg = (e && e.name === 'AbortError')
+      ? 'AI ใช้เวลานานเกิน 8.5 วินาที — ลองลดจำนวนรูปต่อครั้ง หรือถ่ายรูปให้เล็กลง'
+      : (e.message || String(e));
+    return { statusCode: 500, body: JSON.stringify({ error: msg }) };
   }
 };
