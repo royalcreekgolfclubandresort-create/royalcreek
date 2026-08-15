@@ -64,6 +64,14 @@ a.back{color:var(--muted);font-size:14px;text-decoration:none}
       </p>
     </div>
     <div class="card">
+      <h3>📦 พื้นที่เก็บรูป</h3>
+      <div id="stStatus" class="note">กดปุ่มเพื่อตรวจว่ารูปกินพื้นที่เท่าไหร่</div>
+      <button class="big" style="margin-top:10px" id="scanBtn" onclick="scanStorage()">🔍 ตรวจพื้นที่เก็บรูป</button>
+      <div id="stList" style="margin-top:12px"></div>
+      <div id="stClean"></div>
+    </div>
+
+    <div class="card">
       <h3>ตารางในระบบ</h3>
       <div id="tblList">กำลังโหลด…</div>
     </div>
@@ -159,6 +167,94 @@ async function boot(){
   loadEmps();
 }
 boot();
+
+/* ============ จัดการพื้นที่เก็บรูป ============ */
+const BUCKETS=[
+  {id:'time',       name:'รูปลงเวลาเข้า-ออกงาน', note:'ถ่ายทุกครั้งที่ตอกบัตร — มักกินพื้นที่มากที่สุด'},
+  {id:'pos-photos', name:'รูปสินค้า + สลิปโอน',  note:'รูปสินค้าเก็บถาวร · สลิปลบได้ตามอายุ'},
+  {id:'req-photos', name:'รูปใบเบิก/รับของ',     note:'ใช้อ้างอิงตอนตรวจรับของ'},
+  {id:'hk-photos',  name:'รูปงานแม่บ้าน',        note:'หลักฐานการทำความสะอาด'},
+  {id:'mt-photos',  name:'รูปงานซ่อมบำรุง',      note:'ก่อน-หลังซ่อม'}
+];
+let stData=[];
+
+function mb(n){return (n/1048576).toFixed(1)+' MB';}
+
+async function listAll(bucket){
+  /* Storage API คืนได้ครั้งละ 100 ไฟล์ ต้องวนขอทีละหน้า */
+  const out=[]; let off=0;
+  for(let page=0;page<60;page++){
+    const {data,error}=await sb.storage.from(bucket).list('',{limit:100,offset:off,sortBy:{column:'created_at',order:'asc'}});
+    if(error||!data||!data.length)break;
+    data.forEach(f=>{ if(f.name && f.id!==null) out.push(f); });
+    if(data.length<100)break;
+    off+=100;
+  }
+  return out;
+}
+
+async function scanStorage(){
+  const btn=document.getElementById('scanBtn');
+  btn.disabled=true; btn.textContent='กำลังตรวจ…';
+  document.getElementById('stStatus').textContent='กำลังนับไฟล์ อาจใช้เวลาสักครู่…';
+  stData=[];
+  let total=0, totalN=0;
+  for(const b of BUCKETS){
+    document.getElementById('stStatus').textContent='กำลังตรวจ '+b.name+'…';
+    let files=[];
+    try{ files=await listAll(b.id); }catch(e){}
+    const size=files.reduce((a,f)=>a+((f.metadata&&f.metadata.size)||0),0);
+    stData.push({...b,files:files,size:size,n:files.length});
+    total+=size; totalN+=files.length;
+  }
+  stData.sort((a,b)=>b.size-a.size);
+
+  document.getElementById('stStatus').innerHTML=
+    '<b style="color:var(--green);font-size:16px">รวม '+mb(total)+' · '+totalN.toLocaleString()+' ไฟล์</b>'+
+    '<br>โควตาแพ็กเกจฟรีคือ 1,024 MB'+(total>1024*1048576?' — <b style="color:var(--danger)">เกินแล้ว</b>':'');
+
+  document.getElementById('stList').innerHTML=stData.map(x=>
+    '<div class="row"><div><b>'+x.name+'</b><br><span class="note">'+x.note+'</span></div>'+
+    '<div style="text-align:right;white-space:nowrap"><b>'+mb(x.size)+'</b><br><span class="note">'+x.n.toLocaleString()+' ไฟล์</span></div></div>').join('');
+
+  document.getElementById('stClean').innerHTML=
+    '<h3 style="margin:16px 0 6px">🧹 ลบรูปเก่า</h3>'+
+    '<p class="note" style="margin-bottom:10px">ลบถาวร กู้คืนไม่ได้ · ข้อมูลในตาราง (ยอด เวลา ชื่อ) ไม่หาย ลบเฉพาะรูป</p>'+
+    stData.filter(x=>x.n>0).map(x=>
+      '<div style="border:1px solid var(--line);border-radius:11px;padding:11px;margin-bottom:9px">'+
+      '<b>'+x.name+'</b> <span class="note">('+mb(x.size)+')</span>'+
+      '<div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap">'+
+      [30,90,180,365].map(d=>'<button style="flex:1;min-width:78px;padding:10px 4px;font-size:13px;border:1px solid var(--line);border-radius:9px;background:#fff" onclick="purgeOld(\''+x.id+'\','+d+')">เก่ากว่า '+d+' วัน</button>').join('')+
+      '</div></div>').join('');
+
+  btn.disabled=false; btn.textContent='🔍 ตรวจพื้นที่เก็บรูปอีกครั้ง';
+}
+
+async function purgeOld(bucket,days){
+  const b=stData.find(x=>x.id===bucket);
+  if(!b){alert('ข้อมูลยังไม่พร้อม — กด "ตรวจพื้นที่เก็บรูป" อีกครั้งแล้วลองใหม่');return;}
+  const cut=Date.now()-days*86400000;
+  const old=b.files.filter(f=>{
+    const t=Date.parse(f.created_at||f.updated_at||'');
+    return !isNaN(t) && t<cut;
+  });
+  if(!old.length){alert('ไม่มีไฟล์ที่เก่ากว่า '+days+' วันใน '+b.name);return;}
+  const size=old.reduce((a,f)=>a+((f.metadata&&f.metadata.size)||0),0);
+  if(!confirm('ลบรูปใน "'+b.name+'"\n\nที่เก่ากว่า '+days+' วัน\nจำนวน '+old.length.toLocaleString()+' ไฟล์ · '+mb(size)+'\n\nลบถาวร กู้คืนไม่ได้ แน่ใจไหม?'))return;
+
+  const btnTxt=document.getElementById('stStatus');
+  let done=0;
+  for(let i=0;i<old.length;i+=90){
+    const batch=old.slice(i,i+90).map(f=>f.name);
+    try{
+      const {error}=await sb.storage.from(bucket).remove(batch);
+      if(!error)done+=batch.length;
+    }catch(e){}
+    btnTxt.textContent='กำลังลบ… '+done+'/'+old.length;
+  }
+  alert('ลบไปแล้ว '+done.toLocaleString()+' ไฟล์ (~'+mb(size)+')');
+  await scanStorage();
+}
 </script>
 </body>
 </html>
