@@ -201,6 +201,7 @@ const sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
 const $=id=>document.getElementById(id);
 let sel=null,pin='',me=null,venuesAllowed=[],venue=null,cats=[],products=[],cart=[],payMethod='cash',catFilter=null,page='sell';
 let slipMode='soft';   // off = ปิดสนิท · soft = ช่วงทดลอง ข้ามได้ · strict = บังคับ
+let slipSince=null;    // ไม่ตรวจหาบิลตกหล่นก่อนวันนี้ (วันที่เริ่มใช้ระบบ)
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function baht(n){return '฿'+Number(n||0).toLocaleString('th-TH');}
@@ -233,6 +234,8 @@ async function enterFromGrants(emp, gs){
   try{sessionStorage.setItem('ryc_staff',JSON.stringify({id:emp.id,name:me.name}));}catch(e){}
   try{const {data:sm}=await sb.rpc('core_pos_setting_get',{p_emp:me.id,p_k:'slip_mode'});
       if(sm==='off'||sm==='soft'||sm==='strict')slipMode=sm;}catch(e){}
+  try{const {data:ss}=await sb.rpc('core_pos_setting_get',{p_emp:me.id,p_k:'slip_since'});
+      if(ss&&/^\d{4}-\d{2}-\d{2}$/.test(ss))slipSince=ss;}catch(e){}
   const {data:vs}=await sb.from('core_venues').select('code,name_th').in('venue_type',['convenience','hotel']).order('sort_order');
   venuesAllowed=(vs||[]).filter(v=>all||set.has(v.code));
   if(!venuesAllowed.length)return false;
@@ -1007,6 +1010,18 @@ async function loadReport(){
 const SLIPFLAG={mismatch:'ยอดไม่ตรง',noslip:'ไม่มีสลิป',dup:'เลขอ้างอิงซ้ำ',old:'สลิปวันอื่น',noref:'ไม่มีเลขอ้างอิง',unsure:'AI อ่านไม่ชัด',skipped:'ข้ามช่วงทดลอง',noimg:'เก็บรูปไม่สำเร็จ'};
 /* ตรวจว่าตัวอ่านสลิปติดตั้งแล้วและเรียก AI ได้จริง */
 /* ตรวจว่าอัปโหลดรูปขึ้นพื้นที่เก็บไฟล์ได้จริงไหม */
+async function saveSince(){
+  const el=$('sinceVal'); const v=el?el.value:'';
+  if(!v){toast('เลือกวันที่ก่อน');return;}
+  try{
+    const {error}=await sb.rpc('core_pos_setting_set',{p_emp:me.id,p_k:'slip_since',p_v:v});
+    if(error)throw error;
+    slipSince=v;
+    toast('ตั้งวันเริ่มใช้ระบบเป็น '+v);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3]);
+  }catch(e){ toast('บันทึกไม่สำเร็จ: '+(e.message||e)); }
+}
+
 async function pingStorage(){
   const box=$('pingBox'); if(box)box.innerHTML='<span style="color:var(--muted)">กำลังทดสอบ…</span>';
   try{
@@ -1070,12 +1085,16 @@ async function setSlipMode(m){
 async function findMissingSlips(from,to){
   const box=$('spGap'); if(!box)return;
   try{
-    const days=[]; const d0=new Date(from+'T00:00:00'), d1=new Date(to+'T00:00:00');
-    for(let d=new Date(d0); d<=d1 && days.length<7; d.setDate(d.getDate()+1))
-      days.push(d.toISOString().slice(0,10));
-    if(!days.length)return;
+    /* ไม่ตรวจย้อนก่อนวันที่เริ่มใช้ระบบ ไม่งั้นจะไปเจอบิลเก่าที่ยังไม่มีระบบนี้ */
+    let f=from;
+    if(slipSince && f < slipSince) f = slipSince;
 
-    const miss=[];
+    const days=[]; const d0=new Date(f+'T00:00:00'), d1=new Date(to+'T00:00:00');
+    for(let d=new Date(d0); d<=d1 && days.length<7; d.setDate(d.getDate()+1))
+      days.push(new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10));
+    if(!days.length){box.innerHTML='';return;}
+
+    const byDay={};
     for(const day of days){
       const [rep,slp]=await Promise.all([
         sb.rpc('core_pos_report',{p_venue:venue.code,p_date:day}),
@@ -1083,22 +1102,39 @@ async function findMissingSlips(from,to){
       ]);
       const bills=((rep.data||{}).bills)||[];
       const have=new Set(((slp.data)||[]).map(x=>String(x.bill_no).trim()));
-      bills.filter(b=>b.pay==='transfer' && !have.has(String(b.bill_no).trim()))
-           .forEach(b=>miss.push({day:day,bill_no:b.bill_no,total:b.total,by:b.by,at:b.at}));
+      const miss=bills.filter(b=>b.pay==='transfer' && !have.has(String(b.bill_no).trim()));
+      if(miss.length)byDay[day]=miss;
     }
-    if(!miss.length){box.innerHTML='';return;}
 
-    const sum=miss.reduce((a,b)=>a+Number(b.total||0),0);
-    const rows=miss.slice(0,40).map(m=>{const dt=new Date(m.at);
-      return `<div class="row"><div class="nm"><b>${esc(m.bill_no)}</b><small>${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(m.by||'')}</small></div><b>${baht(m.total)}</b></div>`;}).join('');
+    const dayKeys=Object.keys(byDay).sort().reverse();
+    if(!dayKeys.length){box.innerHTML='';return;}
+
+    const grandN=dayKeys.reduce((a,k)=>a+byDay[k].length,0);
+    const grandSum=dayKeys.reduce((a,k)=>a+byDay[k].reduce((x,b)=>x+Number(b.total||0),0),0);
+
+    const sections=dayKeys.map(day=>{
+      const list=byDay[day];
+      const sum=list.reduce((a,b)=>a+Number(b.total||0),0);
+      const d=new Date(day+'T00:00:00');
+      const label=d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'2-digit'});
+      const rows=list.slice(0,25).map(m=>{const dt=new Date(m.at);
+        return `<div class="row"><div class="nm"><b>${esc(m.bill_no)}</b><small>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(m.by||'')}</small></div><b>${baht(m.total)}</b></div>`;}).join('');
+      return `<div style="margin-top:10px">
+        <div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1.5px solid var(--danger);margin-bottom:4px">
+          <b style="font-size:13.5px">${label}</b>
+          <span style="font-size:12px;color:var(--muted)">${list.length} ใบ</span>
+          <b style="margin-left:auto;font-size:13px">${baht(sum)}</b></div>
+        ${rows}${list.length>25?`<div style="font-size:12px;color:var(--muted);padding:4px 0">…และอีก ${list.length-25} ใบ</div>`:''}
+      </div>`;}).join('');
+
     box.innerHTML=`<div style="background:#faece9;border:1.5px solid var(--danger);border-radius:13px;padding:11px 13px;margin-bottom:12px">
-      <b style="color:var(--danger);font-size:15px">⚠️ บิลโอน ${miss.length} ใบ ไม่มีบันทึกสลิปเลย</b>
-      <div style="font-size:12.5px;margin:4px 0 8px">รวม ${baht(sum)} · เฉพาะร้าน ${esc(venue.name_th||venue.code)}</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      <b style="color:var(--danger);font-size:15px">⚠️ บิลโอน ${grandN} ใบ ไม่มีบันทึกสลิป</b>
+      <div style="font-size:12.5px;margin:4px 0 6px">รวม ${baht(grandSum)} · เฉพาะร้าน ${esc(venue.name_th||venue.code)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:2px">
         มักเกิดจากเครื่องพนักงาน<b>ยังเปิดหน้าเว็บเวอร์ชันเก่าค้างไว้</b> ให้ปิดแอปแล้วเปิดใหม่ 1 ครั้ง
-      </div>${rows}
-      ${miss.length>40?`<div style="font-size:12px;color:var(--muted);margin-top:6px">…และอีก ${miss.length-40} ใบ</div>`:''}
-    </div>`;
+        ${slipSince?`<br>ไม่นับบิลก่อนวันที่ ${esc(slipSince)} (วันเริ่มใช้ระบบ)`:''}
+      </div>
+      ${sections}</div>`;
   }catch(e){ box.innerHTML=''; }
 }
 
@@ -1135,7 +1171,7 @@ async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 9 · บอกสถานะรูปชัด ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 10 · แยกตามวัน ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1146,6 +1182,14 @@ async function slipReport(from,to,all,showVoid){
       </div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:7px">
         <b>ปิด</b> = ขายเหมือนเดิม ไม่มีหน้าสลิป · <b>ทดลอง</b> = มีหน้าสลิป แต่กดข้ามได้ · <b>บังคับ</b> = ต้องแนบสลิป หรือใส่เหตุผล
+      </div>
+      <div style="border-top:1px solid var(--line);margin-top:11px;padding-top:10px">
+        <b style="font-size:13.5px">เริ่มใช้ระบบตั้งแต่วันที่</b>
+        <div style="font-size:11.5px;color:var(--muted);margin:2px 0 7px">บิลก่อนวันนี้จะไม่ถูกนับว่า "ตกหล่น"</div>
+        <div style="display:flex;gap:7px">
+          <input class="in" type="date" id="sinceVal" value="${slipSince||''}" style="flex:1;height:42px">
+          <button class="mini" style="flex:none;width:74px;height:42px" onclick="saveSince()">บันทึก</button>
+        </div>
       </div>
       <div style="display:flex;gap:7px;margin-top:9px">
         <button class="mini" style="flex:1;height:42px;font-size:12.5px" onclick="pingSlipAI()">🩺 ทดสอบ AI</button>
