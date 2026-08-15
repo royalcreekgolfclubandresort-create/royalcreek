@@ -1019,11 +1019,40 @@ async function setSlipMode(m){
                $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false);
   }catch(e){ toast('เปลี่ยนไม่สำเร็จ: '+(e.message||e)); }
 }
+function spArgs(){return [$('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
+  $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false];}
+
+async function delSlipRow(id,billNo){
+  if(!confirm('ลบรายการตรวจสลิปของบิล '+billNo+'?\n\nลบถาวร กู้คืนไม่ได้\n(ไม่กระทบยอดขาย — ลบเฉพาะบันทึกการตรวจสลิป)'))return;
+  try{
+    const {error}=await sb.rpc('core_pos_slip_delete',{p_emp:me.id,p_id:id});
+    if(error)throw error;
+    toast('ลบแล้ว');
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3]);
+  }catch(e){ toast('ลบไม่สำเร็จ: '+(e.message||e)); }
+}
+
+async function purgeSlips(mode){
+  const NAME={voided:'บิลที่ลบไปแล้ว',noslip:'รายการที่ไม่มีสลิปแนบ',all:'ทุกรายการในช่วงวันที่นี้'};
+  const f=$('spF')?$('spF').value:null, t=$('spT')?$('spT').value:null;
+  if(!f||!t){toast('เลือกช่วงวันที่ก่อน');return;}
+  try{
+    const {data:n,error:ce}=await sb.rpc('core_pos_slip_purge_count',{p_emp:me.id,p_from:f,p_to:t,p_mode:mode});
+    if(ce)throw ce;
+    if(!n){toast('ไม่มีรายการให้ลบ');return;}
+    if(!confirm('ลบ '+NAME[mode]+'\nช่วง '+f+' ถึง '+t+'\n\nจำนวน '+n+' รายการ\n\nลบถาวร กู้คืนไม่ได้ แน่ใจไหม?'))return;
+    const {data:d,error}=await sb.rpc('core_pos_slip_purge',{p_emp:me.id,p_from:f,p_to:t,p_mode:mode});
+    if(error)throw error;
+    toast('ลบไปแล้ว '+d+' รายการ');
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3]);
+  }catch(e){ toast('ลบไม่สำเร็จ: '+(e.message||e)); }
+}
+
 async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ตรวจสลิปโอน</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 4 · ลบบิลแล้วสลิปหายตาม ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 5 · ลบรายการได้ ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1045,6 +1074,14 @@ async function slipReport(from,to,all,showVoid){
       <span>แสดงบิลที่ลบไปแล้วด้วย</span></div>
     <button class="mini" style="width:100%;height:44px;margin-bottom:12px" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid').checked)">🔍 ดูรายการ</button>
     <div id="spBody"><div class="empty">กำลังโหลด…</div></div>
+    ${me.isOwner?`<div style="border:1.5px solid var(--line);border-radius:13px;padding:11px 13px;margin-top:14px">
+      <b style="font-size:14px">🧹 ล้างรายการในช่วงวันที่ที่เลือก</b>
+      <div style="font-size:11.5px;color:var(--muted);margin:3px 0 9px">ลบถาวร กู้คืนไม่ได้ · ใช้ล้างข้อมูลช่วงทดสอบ</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="mini" style="flex:1;min-width:110px;height:42px;font-size:12.5px" onclick="purgeSlips('voided')">บิลที่ลบแล้ว</button>
+        <button class="mini" style="flex:1;min-width:110px;height:42px;font-size:12.5px" onclick="purgeSlips('noslip')">ที่ไม่มีสลิปแนบ</button>
+        <button class="mini" style="flex:1;min-width:110px;height:42px;font-size:12.5px;color:var(--danger)" onclick="purgeSlips('all')">ทั้งหมดในช่วงนี้</button>
+      </div></div>`:''}
     <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
   try{
     const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid});
@@ -1065,7 +1102,8 @@ async function slipReport(from,to,all,showVoid){
           <b style="${r.voided?'text-decoration:line-through':''}">${esc(r.bill_no)}</b>
           ${r.voided?'<span class="pill rejected">บิลถูกลบแล้ว</span>':''}
           <span style="font-size:12px;color:var(--muted)">${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(r.by||'')} · ${esc(r.venue||'')}</span>
-          <b style="margin-left:auto">${baht(r.bill_total)}</b></div>
+          <b style="margin-left:auto">${baht(r.bill_total)}</b>
+          ${me.isOwner?`<button class="mini" style="flex:none;color:var(--danger);padding:2px 8px" onclick="delSlipRow('${r.id}','${esc(r.bill_no)}')">🗑</button>`:''}</div>
         <div style="margin:6px 0">${tags}</div>
         <div style="font-size:13px">สลิปรวม ${baht(r.slip_total)}${Math.abs(Number(r.diff))>=0.01?` · <b style="color:var(--danger)">${Number(r.diff)>0?'ขาด '+baht(r.diff):'เกิน '+baht(-r.diff)}</b>`:''}</div>
         ${r.reason?`<div style="font-size:12.5px;background:#f6efd9;border-radius:8px;padding:6px 9px;margin-top:6px">💬 ${esc(r.reason)}</div>`:''}
