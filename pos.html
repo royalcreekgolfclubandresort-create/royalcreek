@@ -202,6 +202,7 @@ const $=id=>document.getElementById(id);
 let sel=null,pin='',me=null,venuesAllowed=[],venue=null,cats=[],products=[],cart=[],payMethod='cash',catFilter=null,page='sell';
 let slipMode='soft';   // off = ปิดสนิท · soft = ช่วงทดลอง ข้ามได้ · strict = บังคับ
 let slipSince=null;    // ไม่ตรวจหาบิลตกหล่นก่อนวันนี้ (วันที่เริ่มใช้ระบบ)
+let canAuditSlip=false;  // มีสิทธิ์ pos.slipaudit หรือเป็นเจ้าของ
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function baht(n){return '฿'+Number(n||0).toLocaleString('th-TH');}
@@ -236,6 +237,8 @@ async function enterFromGrants(emp, gs){
       if(sm==='off'||sm==='soft'||sm==='strict')slipMode=sm;}catch(e){}
   try{const {data:ss}=await sb.rpc('core_pos_setting_get',{p_emp:me.id,p_k:'slip_since'});
       if(ss&&/^\d{4}-\d{2}-\d{2}$/.test(ss))slipSince=ss;}catch(e){}
+  try{const {data:ca}=await sb.rpc('core_pos_slip_can_audit',{p_emp:me.id,p_venue:null});
+      canAuditSlip=!!ca;}catch(e){canAuditSlip=false;}
   const {data:vs}=await sb.from('core_venues').select('code,name_th').in('venue_type',['convenience','hotel']).order('sort_order');
   venuesAllowed=(vs||[]).filter(v=>all||set.has(v.code));
   if(!venuesAllowed.length)return false;
@@ -1020,7 +1023,7 @@ async function renderReport(){
   $('pgReport').innerHTML=`<div class="g2" style="align-items:end"><div class="f" style="margin:0"><label>วันที่</label><input class="in" id="rDate" type="date" value="${today}" onchange="loadReport()"></div>
     <button class="mini" style="height:48px" onclick="printSalesReport()">🖨️ รายงานยอดขาย</button>
     <button class="mini" style="height:48px" onclick="backup()">💾 สำรองข้อมูล</button>
-    <button class="mini" style="height:48px" onclick="slipReport()">🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</button></div>
+    <button class="mini" style="height:48px" onclick="slipReport()">🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</button></div>
     <div id="repBody" style="margin-top:12px"><div class="empty">กำลังโหลด…</div></div>`;
   loadReport();
 }
@@ -1229,8 +1232,8 @@ async function purgeSlips(mode){
 async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(t), e=to||iso(t);   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
-  $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 13 · กันบิลซ้ำ + จับรูปซ้ำ ✓</div>
+  $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 14 · สิทธิ์ตรวจแยก + เห็นทั้งซุ้ม ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1265,7 +1268,7 @@ async function slipReport(from,to,all,showVoid){
     </div>
     <div class="togg"><input type="checkbox" id="spAll" ${all?'checked':''} onchange="slipReport($('spF').value,$('spT').value,this.checked,$('spVoid').checked)">
       <span>แสดงทุกบิล (ไม่ใช่เฉพาะที่มีปัญหา)</span></div>
-    ${(me.isManager||me.isOwner)?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="slipReport($('spF').value,$('spT').value,$('spAll').checked,this.checked)">
+    ${canAuditSlip?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="slipReport($('spF').value,$('spT').value,$('spAll').checked,this.checked)">
       <span>แสดงบิลที่ลบไปแล้วด้วย</span></div>`:''}
     <button class="mini" style="width:100%;height:44px;margin-bottom:12px" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid').checked)">🔍 ดูรายการ</button>
     <div id="spBody"><div class="empty">กำลังโหลด…</div></div>
@@ -1282,7 +1285,7 @@ async function slipReport(from,to,all,showVoid){
     const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid});
     if(error)throw error;
     const rows=data.rows||[], by=data.by_staff||[];
-    const staff=(by.length&&data.scope!=='mine')?`<div class="sec-h">สรุปคนกดผ่าน</div>`+by.map(x=>
+    const staff=(by.length&&data.can_audit)?`<div class="sec-h">สรุปคนกดผ่าน</div>`+by.map(x=>
       `<div class="row"><div class="nm"><b>${esc(x.by||'—')}</b></div><span style="color:var(--muted)">${x.n} ครั้ง</span><b style="color:var(--danger)">${baht(x.amt)}</b></div>`).join(''):'';
     const list=rows.length?rows.map(r=>{
       const dt=new Date(r.at);
@@ -1299,7 +1302,7 @@ async function slipReport(from,to,all,showVoid){
         <div style="display:flex;align-items:baseline;gap:8px">
           <b style="${r.voided?'text-decoration:line-through':''}">${esc(r.bill_no)}</b>
           ${r.voided?'<span class="pill rejected">บิลถูกลบแล้ว</span>':''}
-          <span style="font-size:12px;color:var(--muted)">${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}${data.scope==='mine'?'':' · '+esc(r.by||'')} · ${esc(r.venue||'')}</span>
+          <span style="font-size:12px;color:var(--muted)">${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(r.by||'')}${r.mine?' <b style="color:var(--green-2)">(ของฉัน)</b>':''} · ${esc(r.venue||'')}</span>
           <b style="margin-left:auto">${baht(r.bill_total)}</b>
           ${me.isOwner?`<button class="mini" style="flex:none;color:var(--danger);padding:2px 8px" onclick="delSlipRow('${r.id}','${esc(r.bill_no)}')">🗑</button>`:''}</div>
         <div style="margin:6px 0">${tags}</div>
@@ -1307,16 +1310,18 @@ async function slipReport(from,to,all,showVoid){
         ${r.reason?`<div style="font-size:12.5px;background:#f6efd9;border-radius:8px;padding:6px 9px;margin-top:6px">💬 ${esc(r.reason)}</div>`:''}
         <div style="margin-top:6px">${its}</div></div>`;}).join(''):'<div class="empty">ไม่พบรายการ 🎉</div>';
     const vc=Number(data.voided_count)||0;
-    const vnote=(vc&&!showVoid&&data.scope!=='mine')?`<div style="font-size:12px;color:var(--muted);background:#f4f4f2;border-radius:9px;padding:7px 10px;margin-bottom:9px">ซ่อนบิลที่ถูกลบไปแล้วอยู่ ${vc} ใบ · ติ๊กช่องด้านบนถ้าอยากดู</div>`:'';
+    const vnote=(vc&&!showVoid&&data.can_audit)?`<div style="font-size:12px;color:var(--muted);background:#f4f4f2;border-radius:9px;padding:7px 10px;margin-bottom:9px">ซ่อนบิลที่ถูกลบไปแล้วอยู่ ${vc} ใบ · ติ๊กช่องด้านบนถ้าอยากดู</div>`:'';
     const filterNote=(!all && !rows.length)?`<div style="background:#f6efd9;border:1px solid #d9a441;border-radius:11px;padding:9px 12px;font-size:12.5px;color:#8a6d1f;margin-bottom:11px">
       กำลังแสดง<b>เฉพาะบิลที่มีปัญหา</b> · บิลที่ยอดตรงและไม่มีข้อผิดพลาดจะไม่โผล่ตรงนี้<br>
       ติ๊ก "แสดงทุกบิล" ด้านบนถ้าอยากเห็นทั้งหมด</div>`:'';
-    const scopeNote=(data.scope==='mine')?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
-      <b>บิลของ ${esc(data.my_name||me.name)}</b> · ย้อนหลังได้ 7 วัน
-      <div style="color:var(--muted);margin-top:3px">ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งผู้จัดการว่าเกิดอะไรขึ้น · แก้ไขเองไม่ได้</div></div>`:'';
+    const vtxt=(data.venues&&Array.isArray(data.venues)&&data.venues.length)?data.venues.join(', '):'ทุกร้าน';
+    const scopeNote=(!data.can_audit)?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
+      <b>สลิปของซุ้ม ${esc(vtxt)}</b> · ย้อนหลังได้ 7 วัน
+      <div style="color:var(--muted);margin-top:3px">เห็นทุกบิลของซุ้ม รวมวันที่คนอื่นมาทำแทน · ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งคนตรวจสลิป · แก้ไขเองไม่ได้</div></div>`:'';
     $('spBody').innerHTML=filterNote+scopeNote+staff+
       `<div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
-    if(data.scope!=='mine'){ findMissingSlips(f,e); findDupBills(f,e); }
+    canAuditSlip=!!data.can_audit;
+    if(data.can_audit){ findMissingSlips(f,e); findDupBills(f,e); }
   }catch(e){ $('spBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
 }
 
