@@ -392,10 +392,14 @@ async function doCheckout(slipPack){
   cart=[];$('cart').classList.remove('open');
   if(slipPack){
     try{
-      await sb.rpc('core_pos_slip_save',{p_emp:me.id,p_bill_no:data.bill_no,p_venue:venue.code,
+      const {error}=await sb.rpc('core_pos_slip_save',{p_emp:me.id,p_bill_no:data.bill_no,p_venue:venue.code,
         p_bill_total:Number(data.total)||0,p_slips:slipPack.slips,
         p_flags:slipPack.flags,p_reason:slipPack.reason||null});
-    }catch(e){ toast('ขายสำเร็จ แต่บันทึกสลิปไม่ได้ — แจ้งผู้จัดการ'); }
+      if(error)throw error;
+    }catch(e){
+      /* ต้องเห็นชัด ไม่ใช่แว่บเดียวแล้วหาย — ไม่งั้นสลิปหายเงียบโดยไม่มีใครรู้ */
+      alert('⚠️ ขายสำเร็จแล้ว แต่บันทึกสลิปไม่ได้\n\nบิล '+data.bill_no+'\nสาเหตุ: '+(e.message||e)+'\n\nแจ้งเจ้าของ/ผู้จัดการให้ตรวจสอบ');
+    }
   }
   showReceipt({bill_no:data.bill_no,total:data.total,pay:data.pay,items:data.items,at:new Date(),by:me.name});
   await loadData();renderGrid();renderCart();
@@ -1138,6 +1142,15 @@ async function findMissingSlips(from,to){
   }catch(e){ box.innerHTML=''; }
 }
 
+function spQuick(n){
+  const t=new Date(), iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  let f,e;
+  if(n===0){ f=e=iso(t); }
+  else if(n===1){ const y=new Date(t.getTime()-86400000); f=e=iso(y); }
+  else { f=iso(new Date(t.getTime()-n*86400000)); e=iso(t); }
+  const a=spArgs(); slipReport(f,e,a[2],a[3]);
+}
+
 function spArgs(){return [$('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
   $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false];}
 
@@ -1169,9 +1182,9 @@ async function purgeSlips(mode){
 
 async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
-  const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
+  const f=from||iso(t), e=to||iso(t);   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 10 · แยกตามวัน ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 12 · ทุกคนที่ขายได้ แนบได้ ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1196,8 +1209,14 @@ async function slipReport(from,to,all,showVoid){
         <button class="mini" style="flex:1;height:42px;font-size:12.5px" onclick="pingStorage()">📦 ทดสอบที่เก็บรูป</button>
       </div>
       <div id="pingBox" style="font-size:12px;margin-top:7px"></div></div>`:''}
-    <div class="g2" style="margin-bottom:10px">
+    <div class="g2" style="margin-bottom:8px">
       <input class="in" type="date" id="spF" value="${f}"><input class="in" type="date" id="spT" value="${e}"></div>
+    <div style="display:flex;gap:7px;margin-bottom:10px">
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(0)">วันนี้</button>
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(1)">เมื่อวาน</button>
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(6)">7 วัน</button>
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(29)">30 วัน</button>
+    </div>
     <div class="togg"><input type="checkbox" id="spAll" ${all?'checked':''} onchange="slipReport($('spF').value,$('spT').value,this.checked,$('spVoid').checked)">
       <span>แสดงทุกบิล (ไม่ใช่เฉพาะที่มีปัญหา)</span></div>
     ${(me.isManager||me.isOwner)?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="slipReport($('spF').value,$('spT').value,$('spAll').checked,this.checked)">
