@@ -684,7 +684,9 @@ async function slipConfirm(){
     alert('⚠️ บันทึกยอดสลิปได้ แต่เก็บรูปไม่สำเร็จ\n\nสาเหตุ: '+(upErr||'ไม่ทราบ')+'\n\nยอดและเลขอ้างอิงยังถูกบันทึกไว้ครบ\nแจ้งเจ้าของให้ตรวจพื้นที่เก็บไฟล์');
   }else if(slipList.length && upOk<slipList.length){
     flags=flags.concat(['noimg']);
-    toast('เก็บรูปได้ '+upOk+'/'+slipList.length+' ใบ');
+    toast('⚠️ เก็บรูปได้แค่ '+upOk+'/'+slipList.length+' ใบ');
+  }else if(upOk>0){
+    toast('✓ บันทึกแล้ว · เก็บรูป '+upOk+' ใบ');
   }
   closeModal();
   await doCheckout({slips:out,flags:flags,reason:reason});
@@ -1133,7 +1135,7 @@ async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 8 · ตรวจที่เก็บรูปได้ ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 9 · บอกสถานะรูปชัด ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1176,11 +1178,14 @@ async function slipReport(from,to,all,showVoid){
     const list=rows.length?rows.map(r=>{
       const dt=new Date(r.at);
       const tags=(r.flags||[]).map(k=>`<span class="pill ${k==='dup'||k==='noslip'?'rejected':'pending'}" style="margin-right:5px">${SLIPFLAG[k]||k}</span>`).join('');
-      const its=(r.items||[]).map(i=>
-        `<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);padding:4px 0">
-          ${i.img?`<a href="${i.img}" target="_blank"><img src="${i.img}" style="width:34px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"></a>`:'<div style="width:34px"></div>'}
+      const its=(r.items||[]).map(i=>{
+        const thumb=i.img
+          ? `<a href="${i.img}" target="_blank" style="flex:none"><img src="${i.img}" style="width:34px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block" onerror="this.style.display='none';this.parentNode.insertAdjacentHTML('beforeend','<div style=\'width:34px;height:44px;border-radius:6px;border:1px dashed var(--danger);color:var(--danger);font-size:9px;display:flex;align-items:center;justify-content:center;text-align:center\'>เปิด<br>ไม่ได้</div>')"></a>`
+          : `<div style="width:34px;height:44px;border-radius:6px;border:1px dashed var(--line);color:var(--muted);font-size:9px;display:flex;align-items:center;justify-content:center;text-align:center;flex:none">ไม่มี<br>รูป</div>`;
+        return `<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);padding:4px 0">
+          ${thumb}
           <div style="flex:1;min-width:0">${baht(i.amount)} · ${esc(i.bank||'')} ${esc(i.at_txt||'')}<br>🔖 ${esc(i.ref||'ไม่มีเลข')}${i.dup_of?' <b style="color:var(--danger)">ซ้ำกับบิล '+esc(i.dup_of)+'</b>':''}</div>
-        </div>`).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">ไม่มีสลิปแนบ</div>';
+        </div>`;}).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">ไม่มีสลิปแนบ</div>';
       return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:9px${r.voided?';opacity:.55;background:#f4f4f2':''}">
         <div style="display:flex;align-items:baseline;gap:8px">
           <b style="${r.voided?'text-decoration:line-through':''}">${esc(r.bill_no)}</b>
@@ -1194,10 +1199,13 @@ async function slipReport(from,to,all,showVoid){
         <div style="margin-top:6px">${its}</div></div>`;}).join(''):'<div class="empty">ไม่พบรายการ 🎉</div>';
     const vc=Number(data.voided_count)||0;
     const vnote=(vc&&!showVoid&&data.scope!=='mine')?`<div style="font-size:12px;color:var(--muted);background:#f4f4f2;border-radius:9px;padding:7px 10px;margin-bottom:9px">ซ่อนบิลที่ถูกลบไปแล้วอยู่ ${vc} ใบ · ติ๊กช่องด้านบนถ้าอยากดู</div>`:'';
+    const filterNote=(!all && !rows.length)?`<div style="background:#f6efd9;border:1px solid #d9a441;border-radius:11px;padding:9px 12px;font-size:12.5px;color:#8a6d1f;margin-bottom:11px">
+      กำลังแสดง<b>เฉพาะบิลที่มีปัญหา</b> · บิลที่ยอดตรงและไม่มีข้อผิดพลาดจะไม่โผล่ตรงนี้<br>
+      ติ๊ก "แสดงทุกบิล" ด้านบนถ้าอยากเห็นทั้งหมด</div>`:'';
     const scopeNote=(data.scope==='mine')?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
       <b>บิลของ ${esc(data.my_name||me.name)}</b> · ย้อนหลังได้ 7 วัน
       <div style="color:var(--muted);margin-top:3px">ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งผู้จัดการว่าเกิดอะไรขึ้น · แก้ไขเองไม่ได้</div></div>`:'';
-    $('spBody').innerHTML=scopeNote+staff+
+    $('spBody').innerHTML=filterNote+scopeNote+staff+
       `<div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
     if(data.scope!=='mine')findMissingSlips(f,e);
   }catch(e){ $('spBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
