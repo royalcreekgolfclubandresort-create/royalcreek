@@ -1019,6 +1019,44 @@ async function setSlipMode(m){
                $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false);
   }catch(e){ toast('เปลี่ยนไม่สำเร็จ: '+(e.message||e)); }
 }
+/* หาบิลที่จ่ายแบบโอนแต่ไม่มีบันทึกสลิปเลย
+   กรณีนี้เกิดได้เมื่อเครื่องพนักงานยังใช้หน้าเว็บเวอร์ชันเก่าอยู่ (ไม่ได้รีเฟรช)
+   ถ้าไม่ตรวจแบบนี้ บิลพวกนั้นจะไม่โผล่ในรายงานเลย = มองไม่เห็นช่องโหว่ */
+async function findMissingSlips(from,to){
+  const box=$('spGap'); if(!box)return;
+  try{
+    const days=[]; const d0=new Date(from+'T00:00:00'), d1=new Date(to+'T00:00:00');
+    for(let d=new Date(d0); d<=d1 && days.length<7; d.setDate(d.getDate()+1))
+      days.push(d.toISOString().slice(0,10));
+    if(!days.length)return;
+
+    const miss=[];
+    for(const day of days){
+      const [rep,slp]=await Promise.all([
+        sb.rpc('core_pos_report',{p_venue:venue.code,p_date:day}),
+        sb.rpc('core_pos_slip_bills',{p_emp:me.id,p_date:day})
+      ]);
+      const bills=((rep.data||{}).bills)||[];
+      const have=new Set(((slp.data)||[]).map(x=>String(x.bill_no).trim()));
+      bills.filter(b=>b.pay==='transfer' && !have.has(String(b.bill_no).trim()))
+           .forEach(b=>miss.push({day:day,bill_no:b.bill_no,total:b.total,by:b.by,at:b.at}));
+    }
+    if(!miss.length){box.innerHTML='';return;}
+
+    const sum=miss.reduce((a,b)=>a+Number(b.total||0),0);
+    const rows=miss.slice(0,40).map(m=>{const dt=new Date(m.at);
+      return `<div class="row"><div class="nm"><b>${esc(m.bill_no)}</b><small>${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(m.by||'')}</small></div><b>${baht(m.total)}</b></div>`;}).join('');
+    box.innerHTML=`<div style="background:#faece9;border:1.5px solid var(--danger);border-radius:13px;padding:11px 13px;margin-bottom:12px">
+      <b style="color:var(--danger);font-size:15px">⚠️ บิลโอน ${miss.length} ใบ ไม่มีบันทึกสลิปเลย</b>
+      <div style="font-size:12.5px;margin:4px 0 8px">รวม ${baht(sum)} · เฉพาะร้าน ${esc(venue.name_th||venue.code)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+        มักเกิดจากเครื่องพนักงาน<b>ยังเปิดหน้าเว็บเวอร์ชันเก่าค้างไว้</b> ให้ปิดแอปแล้วเปิดใหม่ 1 ครั้ง
+      </div>${rows}
+      ${miss.length>40?`<div style="font-size:12px;color:var(--muted);margin-top:6px">…และอีก ${miss.length-40} ใบ</div>`:''}
+    </div>`;
+  }catch(e){ box.innerHTML=''; }
+}
+
 function spArgs(){return [$('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
   $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false];}
 
@@ -1052,7 +1090,7 @@ async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 6 · แบ่งชั้นการมองเห็น ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 7 · จับบิลที่หลุดได้ ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1113,7 +1151,9 @@ async function slipReport(from,to,all,showVoid){
     const scopeNote=(data.scope==='mine')?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
       <b>บิลของ ${esc(data.my_name||me.name)}</b> · ย้อนหลังได้ 7 วัน
       <div style="color:var(--muted);margin-top:3px">ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งผู้จัดการว่าเกิดอะไรขึ้น · แก้ไขเองไม่ได้</div></div>`:'';
-    $('spBody').innerHTML=scopeNote+staff+`<div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
+    $('spBody').innerHTML=scopeNote+staff+
+      `<div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
+    if(data.scope!=='mine')findMissingSlips(f,e);
   }catch(e){ $('spBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
 }
 
