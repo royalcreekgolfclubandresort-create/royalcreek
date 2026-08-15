@@ -650,7 +650,7 @@ async function slipRetry(){
 }
 async function slipConfirm(){
   if(slipBusy){toast('รอ AI อ่านสลิปให้เสร็จก่อน');return;}
-  const flags=slipFlags();
+  let flags=slipFlags();
   let reason=null;
   if(flags.length){
     const sel=$('slipReasonSel');
@@ -660,20 +660,31 @@ async function slipConfirm(){
   const btn=$('slipOk'); if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก…';}
 
   /* อัปโหลดรูปขึ้น storage (ถ้าไม่ได้ก็ยังขายต่อได้ แค่ไม่มีรูปแนบ) */
-  const out=[];
+  const out=[]; let upErr=null, upOk=0;
   for(let i=0;i<slipList.length;i++){
     const x=slipList[i]; let url=null;
     if(x.blob){
       try{
-        const path='slip/'+(venue?venue.code:'X')+'_'+Date.now()+'_'+i+'.jpg';
-        const {error}=await sb.storage.from('pos-photos').upload(path,x.blob,{contentType:'image/jpeg'});
-        if(!error)url=sb.storage.from('pos-photos').getPublicUrl(path).data.publicUrl;
-      }catch(e){}
+        /* ไม่ใช้โฟลเดอร์ย่อย เพราะ policy ของ storage บางแบบบล็อกเส้นทางที่มี /
+           ตั้งชื่อขึ้นต้นด้วย slip_ แทน จะได้ยังแยกออกว่าเป็นรูปสลิป */
+        const path='slip_'+(venue?venue.code:'X')+'_'+Date.now()+'_'+i+'.jpg';
+        const {error}=await sb.storage.from('pos-photos').upload(path,x.blob,{contentType:'image/jpeg',upsert:false});
+        if(error){ upErr=error.message||String(error); }
+        else url=sb.storage.from('pos-photos').getPublicUrl(path).data.publicUrl;
+      }catch(e){ upErr=e.message||String(e); }
     }
+    if(url)upOk++;
     out.push({ref:x.ref||'',amount:x.amount!=null?x.amount:0,
       slip_at:x.date_iso||'',slip_at_txt:((x.date_txt||'')+' '+(x.time_txt||'')).trim(),
       bank:x.bank||'',payer:x.payer||'',payee:x.payee||'',
       img_url:url||'',dup_of:x.dup_of||'',ai_ok:x.ai_ok!==false});
+  }
+  if(slipList.length && upOk===0){
+    flags=flags.concat(['noimg']);
+    alert('⚠️ บันทึกยอดสลิปได้ แต่เก็บรูปไม่สำเร็จ\n\nสาเหตุ: '+(upErr||'ไม่ทราบ')+'\n\nยอดและเลขอ้างอิงยังถูกบันทึกไว้ครบ\nแจ้งเจ้าของให้ตรวจพื้นที่เก็บไฟล์');
+  }else if(slipList.length && upOk<slipList.length){
+    flags=flags.concat(['noimg']);
+    toast('เก็บรูปได้ '+upOk+'/'+slipList.length+' ใบ');
   }
   closeModal();
   await doCheckout({slips:out,flags:flags,reason:reason});
@@ -991,8 +1002,40 @@ async function loadReport(){
     <div class="sec-h">สินค้าขายดี</div>${top}<div class="sec-h">บิลทั้งหมด (แตะเพื่อพิมพ์ซ้ำ)</div>${bills}`;
 }
 /* ===== รายงานบิลโอนที่ต้องตรวจ ===== */
-const SLIPFLAG={mismatch:'ยอดไม่ตรง',noslip:'ไม่มีสลิป',dup:'เลขอ้างอิงซ้ำ',old:'สลิปวันอื่น',noref:'ไม่มีเลขอ้างอิง',unsure:'AI อ่านไม่ชัด',skipped:'ข้ามช่วงทดลอง'};
+const SLIPFLAG={mismatch:'ยอดไม่ตรง',noslip:'ไม่มีสลิป',dup:'เลขอ้างอิงซ้ำ',old:'สลิปวันอื่น',noref:'ไม่มีเลขอ้างอิง',unsure:'AI อ่านไม่ชัด',skipped:'ข้ามช่วงทดลอง',noimg:'เก็บรูปไม่สำเร็จ'};
 /* ตรวจว่าตัวอ่านสลิปติดตั้งแล้วและเรียก AI ได้จริง */
+/* ตรวจว่าอัปโหลดรูปขึ้นพื้นที่เก็บไฟล์ได้จริงไหม */
+async function pingStorage(){
+  const box=$('pingBox'); if(box)box.innerHTML='<span style="color:var(--muted)">กำลังทดสอบ…</span>';
+  try{
+    /* สร้างรูปจิ๋ว 8×8 แล้วลองอัปจริง */
+    const c=document.createElement('canvas'); c.width=8; c.height=8;
+    const g=c.getContext('2d'); g.fillStyle='#1b5e3f'; g.fillRect(0,0,8,8);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.7));
+    const path='slip_test_'+Date.now()+'.jpg';
+    const {error}=await sb.storage.from('pos-photos').upload(path,blob,{contentType:'image/jpeg'});
+    if(error){
+      let hint='';
+      const m=(error.message||'').toLowerCase();
+      if(m.includes('exceeded')||m.includes('quota')||m.includes('limit'))
+        hint='<br>พื้นที่เก็บไฟล์เต็ม — ต้องลบไฟล์เก่าหรืออัปเกรดแพ็กเกจ';
+      else if(m.includes('policy')||m.includes('permission')||m.includes('unauthorized')||m.includes('row-level'))
+        hint='<br>สิทธิ์ของถัง pos-photos ไม่อนุญาตให้อัปโหลด — ต้องแก้ policy ใน Supabase → Storage';
+      else if(m.includes('not found')||m.includes('bucket'))
+        hint='<br>ไม่พบถัง pos-photos ใน Supabase → Storage';
+      box.innerHTML='<b style="color:var(--danger)">✗ อัปโหลดไม่ได้</b><br><span style="color:var(--muted)">'+esc(error.message||'ไม่ทราบสาเหตุ')+hint+'</span>';
+      return;
+    }
+    const url=sb.storage.from('pos-photos').getPublicUrl(path).data.publicUrl;
+    /* ลองโหลดกลับมาดู ว่าเปิดดูได้จริงไหม (บางที่อัปได้แต่อ่านไม่ได้) */
+    let readable=false;
+    try{ const r=await fetch(url,{cache:'no-store'}); readable=r.ok; }catch(e){}
+    box.innerHTML='<b style="color:var(--ok)">✓ อัปโหลดได้</b><br><span style="color:var(--muted)">'
+      +(readable?'เปิดดูรูปได้ปกติ':'<b style="color:var(--danger)">แต่เปิดดูไม่ได้</b> — ถัง pos-photos ต้องตั้งเป็น Public')
+      +'</span>';
+  }catch(e){ if(box)box.innerHTML='<b style="color:var(--danger)">✗ '+esc(e.message||e)+'</b>'; }
+}
+
 async function pingSlipAI(){
   const box=$('pingBox'); if(box)box.innerHTML='<span style="color:var(--muted)">กำลังทดสอบ…</span>';
   try{
@@ -1090,7 +1133,7 @@ async function slipReport(from,to,all,showVoid){
   const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
   const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${(me.isManager||me.isOwner)?'ตรวจสลิปโอน':'สลิปโอนของฉัน'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 7 · จับบิลที่หลุดได้ ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 8 · ตรวจที่เก็บรูปได้ ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1102,7 +1145,10 @@ async function slipReport(from,to,all,showVoid){
       <div style="font-size:11.5px;color:var(--muted);margin-top:7px">
         <b>ปิด</b> = ขายเหมือนเดิม ไม่มีหน้าสลิป · <b>ทดลอง</b> = มีหน้าสลิป แต่กดข้ามได้ · <b>บังคับ</b> = ต้องแนบสลิป หรือใส่เหตุผล
       </div>
-      <button class="mini" style="width:100%;height:42px;margin-top:9px" onclick="pingSlipAI()">🩺 ทดสอบตัวอ่าน AI</button>
+      <div style="display:flex;gap:7px;margin-top:9px">
+        <button class="mini" style="flex:1;height:42px;font-size:12.5px" onclick="pingSlipAI()">🩺 ทดสอบ AI</button>
+        <button class="mini" style="flex:1;height:42px;font-size:12.5px" onclick="pingStorage()">📦 ทดสอบที่เก็บรูป</button>
+      </div>
       <div id="pingBox" style="font-size:12px;margin-top:7px"></div></div>`:''}
     <div class="g2" style="margin-bottom:10px">
       <input class="in" type="date" id="spF" value="${f}"><input class="in" type="date" id="spT" value="${e}"></div>
