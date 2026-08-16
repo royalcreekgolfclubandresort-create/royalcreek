@@ -664,6 +664,7 @@ function openRecvDetail(id){
         ?`<button class="btn" style="background:#8a6d1f;margin-top:10px" onclick="shortReview(${o.id})">✅ เจ้าของยืนยันรับทราบยอดขาด</button>`
         :`<div style="background:#f6efd9;border:1px solid #e6d29a;border-radius:11px;padding:9px 12px;margin-top:10px;font-size:13px">⏳ ใบนี้มีของขาด — รอเจ้าของตรวจยืนยัน</div>`))
       :''}
+    ${(toolCan.cancel&&((o.status==='received'&&ordDiff(o).short>0)||o.status==='cancelled'))?`<button class="btn" style="background:#3a6ea5;margin-top:10px" onclick="reopenOrder(${o.id},'${esc(o.po_number)}','${o.status}')">↪️ เปิดใบกลับมารับต่อ</button>`:''}
     <button class="btn" style="margin-top:10px" onclick="printOrder(${o.id})">🖨️ พิมพ์ใบสั่งซื้อ</button>
     <button class="btn" style="background:none;color:var(--muted);height:42px" onclick="document.getElementById('rdOv').remove()">ปิด</button></div></div>`);
 }
@@ -674,6 +675,17 @@ async function shortReview(id){
   if(error){alert('ยืนยันไม่สำเร็จ:\n'+(error.message||''));return;}
   toast('บันทึกการรับทราบยอดขาดแล้ว ✓');
   const ov=document.getElementById('rdOv');if(ov)ov.remove();
+  loadRecvData();
+}
+async function reopenOrder(id,po,st){
+  const q=st==='cancelled'
+    ?'เปิดใบ '+po+' ที่ยกเลิกไว้ กลับมาใช้ต่อ?'
+    :'เปิดใบ '+po+' กลับมารับของต่อ?\n(รายการที่ขาดจะกลับไปรอรับที่หน้า 📦 ตรวจรับ)';
+  if(!confirm(q))return;
+  const {data,error}=await sb.rpc('core_wh_po_reopen',{p_emp:me.id,p_order:id});
+  if(error){alert('เปิดใบไม่สำเร็จ:\n'+(error.message||''));return;}
+  const ov=document.getElementById('rdOv');if(ov)ov.remove();
+  toast('เปิดใบ '+po+' กลับแล้ว ✓ ไปที่ "รอตรวจรับ" ได้เลย');
   loadRecvData();
 }
 function printOrder(id){
@@ -949,10 +961,30 @@ async function doWhSet(pid){
   document.getElementById('adjOv').remove();toast('ตั้งค่าแล้ว ✓');await reloadProds();renderStk();
 }
 async function trace(pid,name){
-  const {data}=await sb.rpc('core_wh_product_trace',{p_emp:me.id,p_product:pid});
+  const [{data},pv]=await Promise.all([
+    sb.rpc('core_wh_product_trace',{p_emp:me.id,p_product:pid}),
+    sb.rpc('core_wh_product_venues',{p_emp:me.id,p_product:pid})
+  ]);
   const list=data||[];
+  const info=(pv&&pv.data)||{};
+  const pk=packOf(pid);
+  const lc=Number(lastCosts[String(pid)])||0;
+  const vens2=(info.venues||[]).filter(x=>x.code!=='WH');
+  const vRows=vens2.map(x=>{const pr=Number(x.price)||0;
+    const margin=(lc>0&&pr>0)?(pr-lc):null;
+    return `<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:13px"><span>${esc(x.name||x.code)}${x.is_override?' <span style="font-size:10.5px;color:#8a6d1f">(ราคาเฉพาะสาขา)</span>':''}${Number(x.student)>0?' · นร. '+baht(x.student):''}</span><span><b>${baht(pr)}</b>${margin!==null?` <span style="color:${margin>0?'var(--ok)':'var(--danger)'};font-size:11.5px">กำไร ${baht(margin)} (${pr>0?Math.round(margin/pr*100):0}%)</span>`:''}</span></div>`;}).join('');
+  const infoCard=`<div class="card" style="margin-top:10px">
+    <div style="font-size:15px;font-weight:700">${esc(name)}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px">
+      📦 หน่วย: ${pk?('1 '+esc(pk.name)+' = '+pk.qty+' หน่วย'):'หน่วยย่อยอย่างเดียว'} <a href="#" style="color:var(--green-2)" onclick="setPack(${pid});return false">แก้ขนาด</a><br>
+      💵 ทุนล่าสุด: ${lc>0?baht(lc)+'/หน่วย'+(pk?' ('+baht(lc*pk.qty)+'/'+esc(pk.name)+')':''):'ยังไม่มีข้อมูลซื้อ'}
+      ${Number(info.base_price)>0?' · ราคาขายกลาง '+baht(info.base_price):''}
+    </div>
+    ${vRows?`<div class="sec-h" style="margin:10px 0 3px;font-size:13px">🏪 ราคาขาย/สต๊อกต่อสาขา — กำไรคิดจากทุนล่าสุด</div>${vRows}`:'<div style="font-size:12.5px;color:var(--muted);margin-top:6px">ยังไม่ถูกวางขายที่สาขาไหน</div>'}
+  </div>`;
   if(!list.length){$('vStk').innerHTML=`<button class="mini" onclick="renderStk()">← สต็อกคลัง</button>
-    <div class="sec-h" style="margin-top:12px">เส้นทางสินค้า: ${esc(name)}</div><div class="empty">ยังไม่มีการเคลื่อนไหว</div>`;return;}
+    ${infoCard}
+    <div class="empty">ยังไม่มีการเคลื่อนไหว</div>`;return;}
   /* ตารางวัน × ร้าน */
   const vens=[...new Set(list.map(m=>m.venue))];
   vens.sort((a,b)=>(a==='คลังกลาง'?-1:b==='คลังกลาง'?1:String(a).localeCompare(String(b),'th')));
@@ -972,7 +1004,8 @@ async function trace(pid,name){
   const detail=list.map(m=>{const dt=new Date(m.at);const pos=Number(m.delta)>=0;
     return `<div class="row"><div class="nm"><b>${kt[m.kind]||m.kind} · ${esc(m.venue)}</b><small>${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(m.by||'')}${m.reason?' · '+esc(m.reason):''}</small></div><b style="color:${pos?'var(--ok)':'var(--danger)'}">${pos?'+':''}${m.delta} → ${m.after}</b></div>`;}).join('');
   $('vStk').innerHTML=`<button class="mini" onclick="renderStk()">← สต็อกคลัง</button>
-    <div class="sec-h" style="margin-top:12px">เส้นทางสินค้า: ${esc(name)}</div>
+    ${infoCard}
+    <div class="sec-h" style="margin-top:12px">🧭 เส้นทางสินค้า</div>
     <div style="overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:6px">
       <table style="border-collapse:collapse;width:100%;font-size:13px;min-width:${120+vens.length*86}px">
         <thead>${head}</thead><tbody>${curRow}${dayRows}</tbody></table></div>
