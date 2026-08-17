@@ -204,6 +204,11 @@ let slipMode='soft';   // off = ปิดสนิท · soft = ช่วงท�
 let slipSince=null;    // ไม่ตรวจหาบิลตกหล่นก่อนวันนี้ (วันที่เริ่มใช้ระบบ)
 let canAuditSlip=false;  // มีสิทธิ์ pos.slipaudit หรือเป็นเจ้าของ
 
+/* วันที่ "วันนี้" ตามเวลาเครื่อง ไม่ใช่เวลา UTC
+   ไทยเร็วกว่า UTC 7 ชั่วโมง ถ้าใช้ toISOString() ตรงๆ ช่วงเที่ยงคืนถึงเจ็ดโมงเช้า
+   จะได้วันที่ของเมื่อวาน = บิลและสลิปที่เพิ่งขายไปจะไม่ขึ้นในรายงาน */
+function todayISO(d){const t=d?new Date(d):new Date();
+  return new Date(t.getTime()-t.getTimezoneOffset()*60000).toISOString().slice(0,10);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function baht(n){return '฿'+Number(n||0).toLocaleString('th-TH');}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800);}
@@ -862,7 +867,7 @@ async function submitCount(){
 }
 async function dayHist(dstr){
   const vcode=venue.code;
-  const d=dstr||new Date().toISOString().slice(0,10);
+  const d=dstr||todayISO();
   const {data,error}=await sb.rpc('core_pos_day_history',{p_emp:me.id,p_venue:vcode,p_date:d});
   if(error){toast(error.message||'โหลดไม่สำเร็จ');return;}
   const list=(data&&data.items)||[];const rev=(data&&data.revenue)||null;
@@ -1022,7 +1027,7 @@ async function dmgReject(id){const {error}=await sb.rpc('core_pos_damage_reject'
 
 /* ===== REPORT ===== */
 async function renderReport(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   $('pgReport').innerHTML=`<div class="g2" style="align-items:end"><div class="f" style="margin:0"><label>วันที่</label><input class="in" id="rDate" type="date" value="${today}" onchange="loadReport()"></div>
     <button class="mini" style="height:48px" onclick="printSalesReport()">🖨️ รายงานยอดขาย</button>
     <button class="mini" style="height:48px" onclick="backup()">💾 สำรองข้อมูล</button>
@@ -1112,8 +1117,7 @@ async function setSlipMode(m){
     if(error)throw error;
     slipMode=m;
     toast('เปลี่ยนเป็นโหมด: '+NAME[m]);
-    slipReport($('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
-               $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false);
+    spGo();
   }catch(e){ toast('เปลี่ยนไม่สำเร็จ: '+(e.message||e)); }
 }
 /* หาบิลที่จ่ายแบบโอนแต่ไม่มีบันทึกสลิปเลย
@@ -1195,17 +1199,21 @@ async function findMissingSlips(from,to){
 }
 
 function spQuick(n){
-  const t=new Date(), iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const t=Date.now();
   let f,e;
-  if(n===0){ f=e=iso(t); }
-  else if(n===1){ const y=new Date(t.getTime()-86400000); f=e=iso(y); }
-  else { f=iso(new Date(t.getTime()-n*86400000)); e=iso(t); }
+  if(n===0){ f=e=todayISO(); }
+  else if(n===1){ f=e=todayISO(t-86400000); }
+  else { f=todayISO(t-n*86400000); e=todayISO(); }
   const a=spArgs(); slipReport(f,e,a[2],a[3],a[4]);
 }
 
 let spReview='pending';
 function spArgs(){return [$('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
   $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false, spReview];}
+/* โหลดรายการใหม่ด้วยค่าที่กรอกอยู่บนจอ
+   ต้องอ่านผ่าน spArgs() เท่านั้น เพราะช่อง "แสดงบิลที่ลบแล้ว" มีเฉพาะคนที่มีสิทธิ์ตรวจ
+   ถ้าไปอ่าน $('spVoid').checked ตรงๆ พนักงานทั่วไปจะกดปุ่มแล้วค้าง รายการไม่ขึ้น */
+function spGo(rv){const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],rv||a[4]);}
 
 /* คนตรวจอ่านสลิปด้วยตาแล้วพิมพ์เอง — ปิดช่องโหว่ "จงใจถ่ายเบลอ"
    ค่าที่พิมพ์เก็บคนละช่องกับค่าที่ AI อ่าน ไม่ทับกัน และแก้ทีหลังไม่ได้ */
@@ -1324,12 +1332,14 @@ async function purgeSlips(mode){
 }
 
 async function slipReport(from,to,all,showVoid,review){
-  const rv=review||spReview||'pending';
-  spReview=rv;
-  const t=new Date(); const iso=d=>d.toISOString().slice(0,10);
-  const f=from||iso(t), e=to||iso(t);   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
+  /* พนักงานทั่วไปไม่มีปุ่มเลือกสถานะการตรวจ ถ้าล็อกไว้ที่ "รอตรวจ"
+     บิลที่หัวหน้าตรวจผ่านแล้วจะหายไปจากจอพนักงานโดยไม่มีอะไรบอก */
+  const rv=canAuditSlip?(review||spReview||'pending'):'all';
+  if(canAuditSlip)spReview=rv;
+  const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
+  const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 16 · คนตรวจอ่านเองได้ ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 17 · แก้รายการไม่ขึ้น ✓</div>
     ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
@@ -1362,15 +1372,15 @@ async function slipReport(from,to,all,showVoid,review){
       <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(6)">7 วัน</button>
       <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(29)">30 วัน</button>
     </div>
-    <div class="togg"><input type="checkbox" id="spAll" ${all?'checked':''} onchange="slipReport($('spF').value,$('spT').value,this.checked,$('spVoid').checked)">
+    <div class="togg"><input type="checkbox" id="spAll" ${all?'checked':''} onchange="spGo()">
       <span>แสดงทุกบิล (ไม่ใช่เฉพาะที่มีปัญหา)</span></div>
     ${canAuditSlip?`<div style="display:flex;gap:6px;margin-bottom:10px">
       ${[['pending','รอตรวจ'],['chase','รอตามเก็บ'],['done','ตรวจแล้ว'],['all','ทั้งหมด']].map(([k,l])=>
-        `<button class="mini" style="flex:1;height:40px;font-size:12.5px;${(rv===k)?'background:var(--green-2);color:#fff':''}" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid')?$('spVoid').checked:false,'${k}')">${l}</button>`).join('')}
+        `<button class="mini" style="flex:1;height:40px;font-size:12.5px;${(rv===k)?'background:var(--green-2);color:#fff':''}" onclick="spGo('${k}')">${l}</button>`).join('')}
     </div>`:''}
-    ${canAuditSlip?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="slipReport($('spF').value,$('spT').value,$('spAll').checked,this.checked)">
+    ${canAuditSlip?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="spGo()">
       <span>แสดงบิลที่ลบไปแล้วด้วย</span></div>`:''}
-    <button class="mini" style="width:100%;height:44px;margin-bottom:12px" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid').checked)">🔍 ดูรายการ</button>
+    <button class="mini" style="width:100%;height:44px;margin-bottom:12px" onclick="spGo()">🔍 ดูรายการ</button>
     <div id="spBody"><div class="empty">กำลังโหลด…</div></div>
     ${me.isOwner?`<div style="border:1.5px solid var(--line);border-radius:13px;padding:11px 13px;margin-top:14px">
       <b style="font-size:14px">🧹 ล้างรายการในช่วงวันที่ที่เลือก</b>
@@ -1454,6 +1464,8 @@ async function slipReport(from,to,all,showVoid,review){
     $('spBody').innerHTML=cntNote+filterNote+scopeNote+staff+
       `<div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
     canAuditSlip=!!data.can_audit;
+    /* สิทธิ์ตรวจเพิ่งรู้ตอนนี้ (ตอนวาดจอยังไม่รู้) ต้องวาดใหม่ ไม่งั้นปุ่มของคนตรวจจะไม่โผล่จนกว่าจะปิดแล้วเปิดใหม่ */
+    if(canAuditSlip!==wasAudit){ slipReport(f,e,all,showVoid,review); return; }
     if(data.can_audit){ findMissingSlips(f,e); findDupBills(f,e); }
   }catch(e){ $('spBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
 }
@@ -1511,7 +1523,7 @@ function printPage(){
 }
 async function backup(){
   toast('กำลังสำรองข้อมูล…');
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const [p,rep]=await Promise.all([
     sb.from('core_pos_products').select('*'),
     sb.rpc('core_pos_report',{p_venue:venue.code,p_date:today})
