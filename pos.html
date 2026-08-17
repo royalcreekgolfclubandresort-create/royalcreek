@@ -1142,9 +1142,69 @@ async function findDupBills(from,to){
   }catch(e){ box.innerHTML=''; }
 }
 
+/* สรุปยอดโอนรายวัน — รวมทุกร้านที่มีสิทธิ์ ในการเรียกครั้งเดียว
+   ให้ฐานข้อมูลรวมให้ ไม่งั้นต้องยิงทีละวันทีละร้าน (30 วัน x 9 ร้าน = 270 ครั้ง) */
+let sumByVenue=false;
+async function dailySummary(from,to){
+  const box=$('spSum'); if(!box)return;
+  box.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 2px">กำลังรวมยอด…</div>';
+  try{
+    const {data,error}=await sb.rpc('core_pos_slip_daily',
+      {p_emp:me.id,p_from:from,p_to:to,p_venue:null});
+    if(error)throw error;
+    const rows=(data&&data.rows)||[];
+    if(!rows.length){box.innerHTML='';return;}
+
+    const vlist=(data.venues||[]);
+    /* รวมรายวัน (ทุกร้านรวมกัน) */
+    const byDay={};
+    rows.forEach(r=>{ const k=r.day;
+      if(!byDay[k])byDay[k]={day:k,n:0,total:0,noslip:0,venues:[]};
+      byDay[k].n+=Number(r.n)||0; byDay[k].total+=Number(r.total)||0;
+      byDay[k].noslip+=Number(r.noslip)||0;
+      byDay[k].venues.push(r);
+    });
+    const days=Object.values(byDay).sort((a,b)=>b.day.localeCompare(a.day));
+
+    /* รวมรายร้าน */
+    const byV={};
+    rows.forEach(r=>{ if(!byV[r.venue])byV[r.venue]={venue:r.venue,n:0,total:0,noslip:0};
+      byV[r.venue].n+=Number(r.n)||0; byV[r.venue].total+=Number(r.total)||0;
+      byV[r.venue].noslip+=Number(r.noslip)||0; });
+    const vens=Object.values(byV).sort((a,b)=>b.total-a.total);
+
+    const vname=c=>{const v=(venuesAllowed||[]).find(x=>x.code===c);return v?v.name_th:c;};
+    const gT=Number(data.total)||0, gN=Number(data.n)||0, gM=Number(data.noslip)||0;
+
+    const dayRows=days.map(x=>{
+      const d=new Date(x.day+'T00:00:00');
+      const sub=(vens.length>1)?`<div style="font-size:11px;color:var(--muted);padding:0 0 5px 2px">${x.venues.map(v=>esc(vname(v.venue))+' '+baht(v.total)).join(' · ')}</div>`:'';
+      return `<div class="row"><div class="nm"><b>${d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'})}</b><small>${x.n} บิล${x.noslip?' · <b style="color:var(--danger)">ไม่มีสลิป '+x.noslip+' ใบ</b>':''}</small></div><b>${baht(x.total)}</b></div>${sub}`;}).join('');
+
+    const venRows=vens.map(x=>
+      `<div class="row"><div class="nm"><b>${esc(vname(x.venue))}</b><small>${x.n} บิล${x.noslip?' · <b style="color:var(--danger)">ไม่มีสลิป '+x.noslip+' ใบ</b>':''}</small></div><b>${baht(x.total)}</b></div>`).join('');
+
+    box.innerHTML=`<div style="border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:12px">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+        <b style="font-size:14px">ยอดโอนรายวัน</b>
+        <span style="font-size:11.5px;color:var(--muted)">${vens.length>1?vens.length+' ร้าน':esc(vname(vens[0].venue))}</span>
+        <b style="margin-left:auto;font-size:16px">${baht(gT)}</b>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">เอาไปเทียบกับยอดเงินเข้าในแอปธนาคารของแต่ละวัน ถ้าตรงกันคือครบ</div>
+      ${vens.length>1?`<div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="mini" style="flex:1;height:36px;font-size:12px;${!sumByVenue?'background:var(--green-2);color:#fff':''}" onclick="sumByVenue=false;dailySummary('${from}','${to}')">ตามวัน</button>
+        <button class="mini" style="flex:1;height:36px;font-size:12px;${sumByVenue?'background:var(--green-2);color:#fff':''}" onclick="sumByVenue=true;dailySummary('${from}','${to}')">ตามร้าน</button>
+      </div>`:''}
+      ${sumByVenue&&vens.length>1?venRows:dayRows}
+      <div class="row" style="border-top:2px solid var(--line);margin-top:2px">
+        <div class="nm"><b>รวม ${gN} บิล</b>${gM?`<small style="color:var(--danger)">ไม่มีสลิป ${gM} ใบ</small>`:''}</div>
+        <b>${baht(gT)}</b></div>
+    </div>`;
+  }catch(e){ box.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 2px">รวมยอดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
+}
+
 async function findMissingSlips(from,to){
   const box=$('spGap'); if(!box)return;
-  const sum=$('spSum');
   try{
     let f=from;
     if(slipSince && f < slipSince) f = slipSince;
@@ -1152,9 +1212,9 @@ async function findMissingSlips(from,to){
     const days=[]; const d0=new Date(f+'T00:00:00'), d1=new Date(to+'T00:00:00');
     for(let d=new Date(d0); d<=d1 && days.length<31; d.setDate(d.getDate()+1))
       days.push(todayISO(d.getTime()));
-    if(!days.length){box.innerHTML='';if(sum)sum.innerHTML='';return;}
+    if(!days.length){box.innerHTML='';return;}
 
-    const byDay={}, daily=[];
+    const byDay={};
     for(const day of days){
       const [rep,slp]=await Promise.all([
         sb.rpc('core_pos_report',{p_venue:venue.code,p_date:day}),
@@ -1165,33 +1225,10 @@ async function findMissingSlips(from,to){
       const have=new Set(((slp.data)||[]).map(x=>String(x.bill_no).trim()));
       const miss=tf.filter(b=>!have.has(String(b.bill_no).trim()));
       if(miss.length)byDay[day]=miss;
-      if(tf.length)daily.push({
-        day:day, n:tf.length,
-        total:tf.reduce((a,b)=>a+Number(b.total||0),0),
-        miss:miss.length,
-        missAmt:miss.reduce((a,b)=>a+Number(b.total||0),0)
-      });
+
     }
 
-    /* ---- สรุปยอดโอนรายวัน ---- */
-    if(sum){
-      if(!daily.length)sum.innerHTML='';
-      else{
-        const gT=daily.reduce((a,x)=>a+x.total,0), gN=daily.reduce((a,x)=>a+x.n,0);
-        sum.innerHTML=`<div style="border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:12px">
-          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
-            <b style="font-size:14px">ยอดโอนรายวัน</b>
-            <span style="font-size:11.5px;color:var(--muted)">ร้าน ${esc(venue.name_th||venue.code)}</span>
-            <b style="margin-left:auto;font-size:15px">${baht(gT)}</b>
-          </div>
-          <div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">เอาไปเทียบกับยอดเงินเข้าในแอปธนาคารของแต่ละวัน ถ้าตรงกันคือครบ</div>
-          ${daily.slice().reverse().map(x=>{
-            const d=new Date(x.day+'T00:00:00');
-            return `<div class="row"><div class="nm"><b>${d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'})}</b><small>${x.n} บิล${x.miss?' · <b style="color:var(--danger)">ไม่มีสลิป '+x.miss+' ใบ</b>':''}</small></div><b>${baht(x.total)}</b></div>`;}).join('')}
-          ${daily.length>1?`<div class="row" style="border-top:2px solid var(--line);margin-top:2px"><div class="nm"><b>รวม ${gN} บิล</b></div><b>${baht(gT)}</b></div>`:''}
-        </div>`;
-      }
-    }
+    dailySummary(f,to);
 
     /* ---- บิลที่ไม่มีสลิป ---- */
     const dayKeys=Object.keys(byDay).sort().reverse();
@@ -1221,7 +1258,7 @@ async function findMissingSlips(from,to){
         มักเกิดจากเครื่องพนักงาน<b>ยังเปิดหน้าเว็บเวอร์ชันเก่าค้างไว้</b> ให้ปิดแอปแล้วเปิดใหม่ 1 ครั้ง
       </div>
       ${sections}</div>`;
-  }catch(e){ box.innerHTML=''; if(sum)sum.innerHTML=''; }
+  }catch(e){ box.innerHTML=''; }
 }
 
 function spQuick(n){
@@ -1365,7 +1402,7 @@ async function slipReport(from,to,all,showVoid,review){
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 18 · สรุปยอดโอนรายวัน ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 19 · รวมทุกร้าน ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
