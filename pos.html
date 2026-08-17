@@ -1144,37 +1144,64 @@ async function findDupBills(from,to){
 
 async function findMissingSlips(from,to){
   const box=$('spGap'); if(!box)return;
+  const sum=$('spSum');
   try{
-    /* ไม่ตรวจย้อนก่อนวันที่เริ่มใช้ระบบ ไม่งั้นจะไปเจอบิลเก่าที่ยังไม่มีระบบนี้ */
     let f=from;
     if(slipSince && f < slipSince) f = slipSince;
 
     const days=[]; const d0=new Date(f+'T00:00:00'), d1=new Date(to+'T00:00:00');
-    for(let d=new Date(d0); d<=d1 && days.length<7; d.setDate(d.getDate()+1))
-      days.push(new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10));
-    if(!days.length){box.innerHTML='';return;}
+    for(let d=new Date(d0); d<=d1 && days.length<31; d.setDate(d.getDate()+1))
+      days.push(todayISO(d.getTime()));
+    if(!days.length){box.innerHTML='';if(sum)sum.innerHTML='';return;}
 
-    const byDay={};
+    const byDay={}, daily=[];
     for(const day of days){
       const [rep,slp]=await Promise.all([
         sb.rpc('core_pos_report',{p_venue:venue.code,p_date:day}),
         sb.rpc('core_pos_slip_bills',{p_emp:me.id,p_date:day,p_venue:venue.code})
       ]);
       const bills=((rep.data||{}).bills)||[];
+      const tf=bills.filter(b=>b.pay==='transfer');
       const have=new Set(((slp.data)||[]).map(x=>String(x.bill_no).trim()));
-      const miss=bills.filter(b=>b.pay==='transfer' && !have.has(String(b.bill_no).trim()));
+      const miss=tf.filter(b=>!have.has(String(b.bill_no).trim()));
       if(miss.length)byDay[day]=miss;
+      if(tf.length)daily.push({
+        day:day, n:tf.length,
+        total:tf.reduce((a,b)=>a+Number(b.total||0),0),
+        miss:miss.length,
+        missAmt:miss.reduce((a,b)=>a+Number(b.total||0),0)
+      });
     }
 
+    /* ---- สรุปยอดโอนรายวัน ---- */
+    if(sum){
+      if(!daily.length)sum.innerHTML='';
+      else{
+        const gT=daily.reduce((a,x)=>a+x.total,0), gN=daily.reduce((a,x)=>a+x.n,0);
+        sum.innerHTML=`<div style="border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:12px">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+            <b style="font-size:14px">ยอดโอนรายวัน</b>
+            <span style="font-size:11.5px;color:var(--muted)">ร้าน ${esc(venue.name_th||venue.code)}</span>
+            <b style="margin-left:auto;font-size:15px">${baht(gT)}</b>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">เอาไปเทียบกับยอดเงินเข้าในแอปธนาคารของแต่ละวัน ถ้าตรงกันคือครบ</div>
+          ${daily.slice().reverse().map(x=>{
+            const d=new Date(x.day+'T00:00:00');
+            return `<div class="row"><div class="nm"><b>${d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'})}</b><small>${x.n} บิล${x.miss?' · <b style="color:var(--danger)">ไม่มีสลิป '+x.miss+' ใบ</b>':''}</small></div><b>${baht(x.total)}</b></div>`;}).join('')}
+          ${daily.length>1?`<div class="row" style="border-top:2px solid var(--line);margin-top:2px"><div class="nm"><b>รวม ${gN} บิล</b></div><b>${baht(gT)}</b></div>`:''}
+        </div>`;
+      }
+    }
+
+    /* ---- บิลที่ไม่มีสลิป ---- */
     const dayKeys=Object.keys(byDay).sort().reverse();
     if(!dayKeys.length){box.innerHTML='';return;}
-
     const grandN=dayKeys.reduce((a,k)=>a+byDay[k].length,0);
     const grandSum=dayKeys.reduce((a,k)=>a+byDay[k].reduce((x,b)=>x+Number(b.total||0),0),0);
 
     const sections=dayKeys.map(day=>{
       const list=byDay[day];
-      const sum=list.reduce((a,b)=>a+Number(b.total||0),0);
+      const s2=list.reduce((a,b)=>a+Number(b.total||0),0);
       const d=new Date(day+'T00:00:00');
       const label=d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'2-digit'});
       const rows=list.slice(0,25).map(m=>{const dt=new Date(m.at);
@@ -1183,19 +1210,18 @@ async function findMissingSlips(from,to){
         <div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1.5px solid var(--danger);margin-bottom:4px">
           <b style="font-size:13.5px">${label}</b>
           <span style="font-size:12px;color:var(--muted)">${list.length} ใบ</span>
-          <b style="margin-left:auto;font-size:13px">${baht(sum)}</b></div>
+          <b style="margin-left:auto;font-size:13px">${baht(s2)}</b></div>
         ${rows}${list.length>25?`<div style="font-size:12px;color:var(--muted);padding:4px 0">…และอีก ${list.length-25} ใบ</div>`:''}
       </div>`;}).join('');
 
     box.innerHTML=`<div style="background:#faece9;border:1.5px solid var(--danger);border-radius:13px;padding:11px 13px;margin-bottom:12px">
       <b style="color:var(--danger);font-size:15px">⚠️ บิลโอน ${grandN} ใบ ไม่มีบันทึกสลิป</b>
-      <div style="font-size:12.5px;margin:4px 0 6px">รวม ${baht(grandSum)} · เฉพาะร้าน ${esc(venue.name_th||venue.code)}</div>
+      <div style="font-size:12.5px;margin:4px 0 6px">รวม ${baht(grandSum)}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:2px">
         มักเกิดจากเครื่องพนักงาน<b>ยังเปิดหน้าเว็บเวอร์ชันเก่าค้างไว้</b> ให้ปิดแอปแล้วเปิดใหม่ 1 ครั้ง
-        ${slipSince?`<br>ไม่นับบิลก่อนวันที่ ${esc(slipSince)} (วันเริ่มใช้ระบบ)`:''}
       </div>
       ${sections}</div>`;
-  }catch(e){ box.innerHTML=''; }
+  }catch(e){ box.innerHTML=''; if(sum)sum.innerHTML=''; }
 }
 
 function spQuick(n){
@@ -1339,8 +1365,9 @@ async function slipReport(from,to,all,showVoid,review){
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 17 · แก้รายการไม่ขึ้น ✓</div>
-    ${me.isOwner?`<div style="border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 18 · สรุปยอดโอนรายวัน ✓</div>
+    ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
+    <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
       <div style="font-size:12px;color:var(--muted);margin:2px 0 9px">เปลี่ยนแล้วมีผลทุกเครื่องทันที (พนักงานรีเฟรชหน้าจอ 1 ครั้ง)</div>
       <div style="display:flex;gap:7px">
@@ -1462,7 +1489,7 @@ async function slipReport(from,to,all,showVoid,review){
         <b style="font-size:19px;color:var(--danger)">${c.loss||0}</b><div style="font-size:11px;color:var(--muted)">เสียหาย ${baht(c.loss_amt||0)}</div></div>
     </div>`:'';
     $('spBody').innerHTML=cntNote+filterNote+scopeNote+staff+
-      `<div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
+      `<div id="spSum"></div><div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
     canAuditSlip=!!data.can_audit;
     /* สิทธิ์ตรวจเพิ่งรู้ตอนนี้ (ตอนวาดจอยังไม่รู้) ต้องวาดใหม่ ไม่งั้นปุ่มของคนตรวจจะไม่โผล่จนกว่าจะปิดแล้วเปิดใหม่ */
     if(canAuditSlip!==wasAudit){ slipReport(f,e,all,showVoid,review); return; }
