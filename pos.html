@@ -479,6 +479,16 @@ function paintSlip(){
             <b style="flex:1;text-align:right;font-size:21px;${x.amount==null?'color:var(--danger)':''}">${x.amount!=null?baht(x.amount):'อ่านไม่ได้'}</b>
             <button class="mini" style="flex:none;color:var(--danger)" onclick="slipDel(${i})">ลบ</button>
           </div>
+          ${needFill(x)?`<div style="background:#fbf6e8;border:1px dashed #d9a441;border-radius:9px;padding:8px 9px;margin:6px 0">
+            <div style="font-size:11.5px;color:#8a6d1f;margin-bottom:6px"><b>AI อ่านไม่ครบ</b> — ดูสลิปแล้วพิมพ์ตามที่เห็น เพื่อให้ระบบเช็คสลิปซ้ำได้</div>
+            ${x.amount==null?`<input class="in" type="number" inputmode="decimal" placeholder="ยอดเงินบนสลิป *" style="height:40px;font-size:14px;margin-bottom:5px" value="${x.e_amt!=null?x.e_amt:''}" oninput="empFill(${i},'e_amt',this.value)">`:''}
+            <div style="display:flex;gap:5px;margin-bottom:5px">
+              ${!x.date_txt?`<input class="in" placeholder="วันที่ 17/08/2569 *" style="flex:1;height:40px;font-size:14px" value="${esc(x.e_date||'')}" oninput="empFill(${i},'e_date',this.value)">`:''}
+              ${!x.time_txt?`<input class="in" placeholder="เวลา 13:33 *" style="flex:1;height:40px;font-size:14px" value="${esc(x.e_time||'')}" oninput="empFill(${i},'e_time',this.value)">`:''}
+            </div>
+            ${!x.ref?`<input class="in" placeholder="รหัสอ้างอิงบนสลิป *" style="height:40px;font-size:14px;margin-bottom:5px" value="${esc(x.e_ref||'')}" oninput="empFill(${i},'e_ref',this.value)">
+              <div style="font-size:11px;color:var(--muted)">หา "รหัสอ้างอิง" ที่อยู่บนสุด · <b>ห้ามใช้</b>รหัสร้านค้า (KB...) หรือรหัสธุรกรรม (KPS...)</div>`:''}
+          </div>`:''}
           <div style="font-size:12px;color:var(--muted);line-height:1.55">
             📅 ${esc(x.date_txt||'—')} ${esc(x.time_txt||'')}${x.bank?' · '+esc(x.bank):''}<br>
             🔖 ${x.ref?esc(x.ref):'<span style="color:var(--danger)">อ่านเลขอ้างอิงไม่ได้</span>'}
@@ -535,17 +545,37 @@ function paintSlip(){
         <option>ลูกค้าโอนขาด ติดค้างไว้</option>
         <option>AI อ่านผิด ผมตรวจแล้วยอดถูกต้อง</option>
         <option>ลูกค้าโอนมาก่อนหน้านี้ วันอื่น</option>
-        <option>เน็ตล่ม / ถ่ายรูปไม่ได้ ตรวจจากแอปธนาคารแล้ว</option>
+
         <option value="__other">อื่นๆ (พิมพ์เอง)</option>
       </select>
       <input class="in" id="slipReasonTxt" placeholder="พิมพ์เหตุผล" style="margin-top:8px;display:none">
     </div>
 
-    <button class="save" id="slipOk" onclick="slipConfirm()">${slipList.length?'ยืนยันและเก็บเงิน':'ยืนยันโดยไม่มีสลิป'} ${baht(bill)}</button>
+    ${(slipMode==='strict'&&!slipList.length)?`<div style="background:#faece9;border:1.5px solid var(--danger);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--danger);margin-bottom:9px">
+      <b>ต้องแนบสลิปก่อน</b><div style="color:var(--ink);font-size:12px;margin-top:3px">บิลโอนต้องมีสลิปทุกครั้ง · ถ้า AI อ่านไม่ได้ก็ส่งรูปมาได้เลย เดี๋ยวคนตรวจอ่านให้</div></div>`:''}
+    <button class="save" id="slipOk" ${(slipMode==='strict'&&!slipList.length)?'disabled style="opacity:.45"':''} onclick="slipConfirm()">${slipList.length?'ยืนยันและเก็บเงิน':(slipMode==='strict'?'แนบสลิปก่อน':'ยืนยันโดยไม่มีสลิป')} ${baht(bill)}</button>
     ${slipMode==='soft'?`<button class="mini" style="width:100%;height:46px;margin-top:8px;border:1.5px solid var(--line)" onclick="slipSkip()">⏭ ข้ามไปก่อน — ขายเลย</button>
       <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:6px">ช่วงทดลอง · ยังไม่บังคับ แนบเมื่อสะดวก</div>`:''}
     <button class="ghost" onclick="closeModal()">ยกเลิก กลับไปแก้บิล</button>
   </div></div>`;
+}
+
+/* ต้องให้พนักงานกรอกเองไหม — เฉพาะช่องที่ AI อ่านไม่ได้
+   ที่ AI อ่านได้แล้วไม่ต้องพิมพ์ซ้ำ ป้องกันการพิมพ์ทับค่าที่ถูกต้องอยู่แล้ว */
+function needFill(x){ return (x.amount==null)||!x.ref||!x.date_txt||!x.time_txt; }
+function fillOk(x){
+  if(x.amount==null && (x.e_amt==null||x.e_amt===''))return false;
+  if(!x.ref   && !String(x.e_ref||'').trim())return false;
+  if(!x.date_txt && !String(x.e_date||'').trim())return false;
+  if(!x.time_txt && !String(x.e_time||'').trim())return false;
+  return true;
+}
+function empFill(i,k,v){
+  if(!slipList[i])return;
+  slipList[i][k]=(k==='e_amt')?(v===''?null:Number(v)):v;
+  /* ไม่วาดใหม่ทั้งหน้า ไม่งั้นช่องที่กำลังพิมพ์จะเด้ง */
+  const b=$('slipOk'); if(b)b.disabled=false;
+  if(k==='e_ref')slipList[i]._dupChecked=false;
 }
 
 function slipFlags(){
@@ -640,7 +670,7 @@ async function slipSkip(){
    ทางที่สองสำคัญมาก เพราะถ้ารูปเบลอจน AI อ่านเลขไม่ออก
    ตัวจับซ้ำแบบเดิมจะไม่ทำงานเลย = ลูกค้าเอาสลิปเดิมมาใช้ซ้ำได้ */
 async function slipDupCheck(){
-  const refs=slipList.map(x=>x.ref).filter(Boolean);
+  const refs=slipList.map(x=>x.ref||x.e_ref).filter(Boolean);
   const hashes=slipList.map(x=>x.hash).filter(Boolean);
   slipList.forEach(x=>{x.dup_of=null;x.dup_kind=null;});
   if(!refs.length && !hashes.length)return;
@@ -651,7 +681,8 @@ async function slipDupCheck(){
     (data||[]).forEach(d=>{
       let hit=null;
       if(d.kind==='img')hit=slipList.find(x=>x.hash===d.key);
-      else hit=slipList.find(x=>x.ref&&String(x.ref).trim().toUpperCase()===String(d.key).trim().toUpperCase());
+      else hit=slipList.find(x=>{const r=(x.ref||x.e_ref||'');
+        return r && String(r).trim().toUpperCase()===String(d.key).trim().toUpperCase();});
       if(hit && !hit.dup_of){
         hit.dup_of=d.used_bill+(d.used_venue?' ('+d.used_venue+')':'');
         hit.dup_kind=d.kind;
@@ -695,12 +726,38 @@ async function slipRetry(){
 }
 async function slipConfirm(){
   if(slipBusy){toast('รอ AI อ่านสลิปให้เสร็จก่อน');return;}
+
+  /* โหมดบังคับ: ต้องมีสลิป ไม่มีทางออกด้วยเหตุผลอีก */
+  if(slipMode==='strict' && !slipList.length){
+    alert('บิลโอนต้องแนบสลิปทุกครั้ง\n\nถ้า AI อ่านไม่ได้ก็ส่งรูปมาได้เลย เดี๋ยวคนตรวจอ่านให้');
+    return;
+  }
+
+  /* ต้องกรอกช่องที่ AI อ่านไม่ได้ให้ครบ เพื่อเช็คสลิปซ้ำได้ */
+  const bad=slipList.findIndex(x=>!fillOk(x));
+  if(bad>=0){
+    alert('กรอกข้อมูลสลิปใบที่ '+(bad+1)+' ให้ครบก่อน\n\nต้องมี: ยอดเงิน · วันที่ · เวลา · รหัสอ้างอิง\nเพื่อให้ระบบตรวจได้ว่าสลิปนี้เคยใช้แล้วหรือยัง');
+    return;
+  }
+
+  /* เช็คสลิปซ้ำอีกรอบ รวมเลขที่พนักงานเพิ่งกรอก — ตอนนี้ลูกค้ายังอยู่ตรงหน้า */
+  const btn0=$('slipOk'); if(btn0){btn0.disabled=true;btn0.textContent='กำลังตรวจสลิปซ้ำ…';}
+  await slipDupCheck();
+  if(btn0){btn0.disabled=false;}
+  const dupIdx=slipList.findIndex(x=>x.dup_of);
+  if(dupIdx>=0){
+    paintSlip();
+    alert('🔴 สลิปใบที่ '+(dupIdx+1)+' เคยใช้กับบิล '+slipList[dupIdx].dup_of+' แล้ว\n\n'
+      +'ลูกค้ายังไม่ได้จ่ายเงินสำหรับบิลนี้\nให้ขอสลิปใหม่ หรือให้โอนใหม่\n\n'
+      +'ถ้ายืนยันต่อ บิลนี้จะถูกล็อกไว้ให้เจ้าของตรวจ และกดผ่านไม่ได้');
+    if(!confirm('ยืนยันเก็บเงินทั้งที่สลิปซ้ำ?'))return;
+  }
+
   let flags=slipFlags();
   let reason=null;
   if(flags.length){
     const sel=$('slipReasonSel');
     reason=sel?(sel.value==='__other'?(($('slipReasonTxt')||{}).value||'').trim():sel.value):'';
-    if(!reason && slipMode==='strict'){toast('กรุณาเลือกเหตุผลก่อนยืนยัน');return;}
   }
   const btn=$('slipOk'); if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก…';}
 
@@ -719,7 +776,10 @@ async function slipConfirm(){
       }catch(e){ upErr=e.message||String(e); }
     }
     if(url)upOk++;
-    out.push({ref:x.ref||'',amount:x.amount!=null?x.amount:0,ai_amount:x.amount!=null?x.amount:null,
+    const finalAmt = (x.amount!=null) ? x.amount : (x.e_amt!=null?Number(x.e_amt):0);
+    out.push({ref:x.ref||'',amount:finalAmt,ai_amount:x.amount!=null?x.amount:null,
+      emp_ref:x.e_ref||'',emp_amount:(x.e_amt!=null&&x.e_amt!=='')?Number(x.e_amt):null,
+      emp_date:x.e_date||'',emp_time:x.e_time||'',
       slip_at:x.date_iso||'',slip_at_txt:((x.date_txt||'')+' '+(x.time_txt||'')).trim(),
       bank:x.bank||'',payer:x.payer||'',payee:x.payee||'',
       img_url:url||'',dup_of:x.dup_of||'',img_hash:x.hash||'',ai_ok:x.ai_ok!==false});
@@ -1424,7 +1484,7 @@ async function slipReport(from,to,all,showVoid,review){
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 20 · กันรหัสร้านค้า ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 21 · บังคับแนบ + พนักงานกรอก ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
