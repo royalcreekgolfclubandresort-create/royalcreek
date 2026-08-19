@@ -355,7 +355,12 @@ async function empDetail(id,name){
   if(error){toast(error.message);return;}
   const rows=(data||[]).map(d=>{
     const noout=d.in&&!d.out, short=d.hrs!=null&&Number(d.hrs)<9;
-    return `<div class="row"><span>${d.d}</span><span>${d.in||'–'} → ${d.out||'–'}</span>
+    const ph=(u,cap)=>u?`<img src="${u}" loading="lazy" onerror="this.remove()"
+      onclick="event.stopPropagation();viewPhoto('${u}','${cap}')"
+      style="width:36px;height:36px;border-radius:9px;object-fit:cover;border:1.5px solid var(--line,#ddd);flex:none;cursor:pointer">`:'';
+    return `<div class="row"><span>${d.d}</span>
+      <span style="display:flex;gap:4px;align-items:center">${ph(d.pin,'เข้า '+d.d+' '+(d.in||''))}${ph(d.pout,'ออก '+d.d+' '+(d.out||''))}</span>
+      <span>${d.in||'–'} → ${d.out||'–'}</span>
       <b style="${short?'color:var(--danger)':''}">${d.hrs!=null?d.hrs+' ชม.':'–'}</b>
       ${Number(d.ot||0)>0?`<small style="color:var(--ok);font-weight:700">OT ${d.ot}</small>`:''}
       ${short?'<small style="color:var(--danger);font-weight:700">⚑ ไม่ครบ 9</small>':''}
@@ -372,6 +377,14 @@ async function empDetail(id,name){
     <button class="btn" style="margin-top:12px" onclick="this.closest('div[style]').parentElement.remove()">ปิด</button></div>`;
   dv.onclick=e=>{if(e.target===dv)dv.remove();};
   document.body.appendChild(dv);}
+function viewPhoto(url,cap){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px';
+  ov.innerHTML=`<img src="${url}" style="max-width:96vw;max-height:82vh;border-radius:14px">
+    <div style="color:#fff;font-size:15px">${cap}</div>
+    <div style="color:#aaa;font-size:12px">แตะที่ใดก็ได้เพื่อปิด</div>`;
+  ov.onclick=()=>ov.remove();
+  document.body.appendChild(ov);}
 function editTimeAsk(){
   const dd=prompt('วันที่ (ปี-เดือน-วัน)',$('rFrom').value||'');
   if(!dd)return;
