@@ -188,13 +188,26 @@ function closeCam(){
   const o=document.getElementById('camOv');if(o)o.remove();
 }
 const CAM_FILTERS=[
-  {k:'none',n:'ปกติ',css:'none'},
-  {k:'soft',n:'นวล',css:'brightness(1.08) saturate(.92)'},
-  {k:'vivid',n:'สดใส',css:'saturate(1.3) brightness(1.05)'},
-  {k:'vintage',n:'วินเทจ',css:'sepia(.45) contrast(1.05)'},
-  {k:'bw',n:'ขาวดำ',css:'grayscale(1)'}
+  {k:'none',n:'ปกติ',p:{}},
+  {k:'soft',n:'นวล',p:{br:1.08,sat:.92,warm:4}},
+  {k:'clarendon',n:'ชัดใส',p:{ct:1.18,sat:1.32}},
+  {k:'juno',n:'จูโน่',p:{ct:1.1,sat:1.32,warm:10}},
+  {k:'valencia',n:'วาเลนเซีย',p:{br:1.08,ct:1.06,sep:.25,warm:6}},
+  {k:'lark',n:'ลาร์ค',p:{br:1.1,sat:.9,warm:-5}},
+  {k:'vintage',n:'วินเทจ',p:{sep:.45,ct:1.05}},
+  {k:'moon',n:'ขาวดำ',p:{gray:1,br:1.06,ct:1.1}}
 ];
 let camFilter='none';
+function filterCss(p){
+  if(!p||!Object.keys(p).length)return 'none';
+  const s=[];
+  if(p.gray)s.push('grayscale(1)');
+  if(p.sep)s.push('sepia('+p.sep+')');
+  if(p.sat&&!p.gray)s.push('saturate('+p.sat+')');
+  if(p.ct)s.push('contrast('+p.ct+')');
+  if(p.br)s.push('brightness('+p.br+')');
+  return s.join(' ')||'none';
+}
 function buildFilterRow(){
   const r=document.getElementById('filterRow');if(!r)return;
   r.innerHTML=CAM_FILTERS.map(f=>
@@ -202,28 +215,27 @@ function buildFilterRow(){
       style="flex:none;padding:7px 13px;border-radius:99px;border:1.5px solid ${camFilter===f.k?'#1a7f4b':'#444'};
       background:${camFilter===f.k?'#1a7f4b':'#111'};color:#fff;font-size:13px">${f.n}</button>`).join('');
   const v=document.getElementById('camV');
-  if(v){const f=CAM_FILTERS.find(x=>x.k===camFilter);v.style.filter=f?f.css:'none';}
+  if(v){const f=CAM_FILTERS.find(x=>x.k===camFilter);v.style.filter=f?filterCss(f.p):'none';}
 }
 function setCamFilter(k){camFilter=k;buildFilterRow();}
 function bakeFilter(ctx,w,h){
-  if(camFilter==='none')return;
+  const f=CAM_FILTERS.find(x=>x.k===camFilter);
+  const p=(f&&f.p)||{};
+  if(!Object.keys(p).length)return;
   const im=ctx.getImageData(0,0,w,h),d=im.data;
   const cl=x=>x<0?0:x>255?255:x;
   for(let i=0;i<d.length;i+=4){
     let r=d[i],g=d[i+1],b=d[i+2];
-    if(camFilter==='bw'){
-      const y=.299*r+.587*g+.114*b;r=g=b=y;
-    }else if(camFilter==='vintage'){
+    if(p.gray){const y=.299*r+.587*g+.114*b;r=g=b=y;}
+    if(p.sep){
       const nr=.393*r+.769*g+.189*b, ng=.349*r+.686*g+.168*b, nb=.272*r+.534*g+.131*b;
-      r=r*.55+nr*.45; g=g*.55+ng*.45; b=b*.55+nb*.45;
-      r=(r-128)*1.05+128; g=(g-128)*1.05+128; b=(b-128)*1.05+128;
-    }else if(camFilter==='vivid'){
-      const av=(r+g+b)/3;
-      r=(av+(r-av)*1.3)*1.05; g=(av+(g-av)*1.3)*1.05; b=(av+(b-av)*1.3)*1.05;
-    }else if(camFilter==='soft'){
-      const av=(r+g+b)/3;
-      r=(av+(r-av)*.92)*1.08+5; g=(av+(g-av)*.92)*1.08+2; b=(av+(b-av)*.92)*1.08;
+      r=r*(1-p.sep)+nr*p.sep; g=g*(1-p.sep)+ng*p.sep; b=b*(1-p.sep)+nb*p.sep;
     }
+    if(p.sat&&!p.gray){const av=(r+g+b)/3;
+      r=av+(r-av)*p.sat; g=av+(g-av)*p.sat; b=av+(b-av)*p.sat;}
+    if(p.ct){r=(r-128)*p.ct+128; g=(g-128)*p.ct+128; b=(b-128)*p.ct+128;}
+    if(p.br){r*=p.br; g*=p.br; b*=p.br;}
+    if(p.warm){r+=p.warm; b-=p.warm*.7;}
     d[i]=cl(r);d[i+1]=cl(g);d[i+2]=cl(b);
   }
   ctx.putImageData(im,0,0);
