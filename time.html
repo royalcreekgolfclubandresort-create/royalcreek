@@ -174,16 +174,59 @@ async function openCam(){
   const ov=document.createElement('div');ov.id='camOv';
   ov.style.cssText='position:fixed;inset:0;background:#000;z-index:999;display:flex;flex-direction:column';
   ov.innerHTML=`<video id="camV" autoplay playsinline muted style="flex:1;min-height:0;object-fit:cover;transform:scaleX(-1)"></video>
+    <div id="filterRow" style="display:flex;gap:6px;padding:10px 14px 4px;background:#000;overflow-x:auto"></div>
     <div style="display:flex;gap:10px;padding:14px;padding-bottom:max(14px,env(safe-area-inset-bottom));background:#000">
       <button onclick="closeCam()" style="flex:1;padding:15px;border-radius:12px;border:0;background:#333;color:#fff;font-size:16px">ยกเลิก</button>
       <button onclick="snapCam()" style="flex:2;padding:15px;border-radius:12px;border:0;background:#1a7f4b;color:#fff;font-size:17px;font-weight:700">📸 ถ่ายรูป</button>
     </div>`;
   document.body.appendChild(ov);
   document.getElementById('camV').srcObject=camStream;
+  buildFilterRow();
 }
 function closeCam(){
   if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
   const o=document.getElementById('camOv');if(o)o.remove();
+}
+const CAM_FILTERS=[
+  {k:'none',n:'ปกติ',css:'none'},
+  {k:'soft',n:'นวล',css:'brightness(1.08) saturate(.92)'},
+  {k:'vivid',n:'สดใส',css:'saturate(1.3) brightness(1.05)'},
+  {k:'vintage',n:'วินเทจ',css:'sepia(.45) contrast(1.05)'},
+  {k:'bw',n:'ขาวดำ',css:'grayscale(1)'}
+];
+let camFilter='none';
+function buildFilterRow(){
+  const r=document.getElementById('filterRow');if(!r)return;
+  r.innerHTML=CAM_FILTERS.map(f=>
+    `<button onclick="setCamFilter('${f.k}')" id="cf_${f.k}"
+      style="flex:none;padding:7px 13px;border-radius:99px;border:1.5px solid ${camFilter===f.k?'#1a7f4b':'#444'};
+      background:${camFilter===f.k?'#1a7f4b':'#111'};color:#fff;font-size:13px">${f.n}</button>`).join('');
+  const v=document.getElementById('camV');
+  if(v){const f=CAM_FILTERS.find(x=>x.k===camFilter);v.style.filter=f?f.css:'none';}
+}
+function setCamFilter(k){camFilter=k;buildFilterRow();}
+function bakeFilter(ctx,w,h){
+  if(camFilter==='none')return;
+  const im=ctx.getImageData(0,0,w,h),d=im.data;
+  const cl=x=>x<0?0:x>255?255:x;
+  for(let i=0;i<d.length;i+=4){
+    let r=d[i],g=d[i+1],b=d[i+2];
+    if(camFilter==='bw'){
+      const y=.299*r+.587*g+.114*b;r=g=b=y;
+    }else if(camFilter==='vintage'){
+      const nr=.393*r+.769*g+.189*b, ng=.349*r+.686*g+.168*b, nb=.272*r+.534*g+.131*b;
+      r=r*.55+nr*.45; g=g*.55+ng*.45; b=b*.55+nb*.45;
+      r=(r-128)*1.05+128; g=(g-128)*1.05+128; b=(b-128)*1.05+128;
+    }else if(camFilter==='vivid'){
+      const av=(r+g+b)/3;
+      r=(av+(r-av)*1.3)*1.05; g=(av+(g-av)*1.3)*1.05; b=(av+(b-av)*1.3)*1.05;
+    }else if(camFilter==='soft'){
+      const av=(r+g+b)/3;
+      r=(av+(r-av)*.92)*1.08+5; g=(av+(g-av)*.92)*1.08+2; b=(av+(b-av)*.92)*1.08;
+    }
+    d[i]=cl(r);d[i+1]=cl(g);d[i+2]=cl(b);
+  }
+  ctx.putImageData(im,0,0);
 }
 async function snapCam(){
   const v=document.getElementById('camV');
@@ -191,7 +234,9 @@ async function snapCam(){
   const sc=Math.min(1,900/Math.max(v.videoWidth,v.videoHeight));
   const c=document.createElement('canvas');
   c.width=Math.round(v.videoWidth*sc);c.height=Math.round(v.videoHeight*sc);
-  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  const cx=c.getContext('2d');
+  cx.drawImage(v,0,0,c.width,c.height);
+  try{bakeFilter(cx,c.width,c.height);}catch(e){}
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.75));
   closeCam();
   if(blob)punchUpload(blob);else toast('ถ่ายรูปไม่สำเร็จ ลองใหม่');
@@ -211,6 +256,31 @@ async function shrinkPhoto(file,maxW,q){
     return (blob&&blob.size<file.size)?blob:file;
   }catch(e){return file;}
 }
+async function stampPhoto(blob,kind,lat,lng){
+  try{
+    const img=await new Promise((res,rej)=>{const i=new Image();
+      i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(blob);});
+    const c=document.createElement('canvas');c.width=img.width;c.height=img.height;
+    const x=c.getContext('2d');x.drawImage(img,0,0);
+    URL.revokeObjectURL(img.src);
+    const THM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const n=new Date();
+    const l1=`${kind==='in'?'✓ เข้างาน':'✓ ออกงาน'} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')} น. · ${n.getDate()} ${THM[n.getMonth()]} ${n.getFullYear()+543}`;
+    const l2=`GPS ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const fs1=Math.max(15,Math.round(c.height*0.038));
+    const fs2=Math.round(fs1*0.72);
+    const barH=fs1+fs2+Math.round(fs1*0.9);
+    x.fillStyle='rgba(0,0,0,.55)';
+    x.fillRect(0,c.height-barH,c.width,barH);
+    x.fillStyle='#fff';x.textBaseline='alphabetic';
+    x.font=`bold ${fs1}px sans-serif`;
+    x.fillText(l1,Math.round(fs1*0.6),c.height-barH+fs1+Math.round(fs1*0.25));
+    x.font=`${fs2}px sans-serif`;x.fillStyle='rgba(255,255,255,.85)';
+    x.fillText(l2,Math.round(fs1*0.6),c.height-Math.round(fs1*0.35));
+    const out=await new Promise(r=>c.toBlob(r,'image/jpeg',0.78));
+    return out||blob;
+  }catch(e){return blob;}
+}
 $('cam') && ($('cam').onchange=async function(){
   const f=this.files[0];if(!f)return;
   punchUpload(f);
@@ -220,7 +290,8 @@ async function punchUpload(f){
   navigator.geolocation.getCurrentPosition(async pos=>{
     try{
       toast('กำลังอัปโหลดรูป…');
-      const fs=await shrinkPhoto(f);
+      let fs=await shrinkPhoto(f);
+      fs=await stampPhoto(fs,pendKind,pos.coords.latitude,pos.coords.longitude);
       const path=me.id+'/'+Date.now()+'.jpg';
       const {error:ue}=await sb.storage.from('time').upload(path,fs,{contentType:'image/jpeg'});
       if(ue){toast('อัปโหลดรูปไม่สำเร็จ: '+ue.message);return;}
