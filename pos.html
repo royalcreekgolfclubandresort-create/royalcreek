@@ -203,6 +203,7 @@ let sel=null,pin='',me=null,venuesAllowed=[],venue=null,cats=[],products=[],cart
 let slipMode='soft';   // off = ปิดสนิท · soft = ช่วงทดลอง ข้ามได้ · strict = บังคับ
 let slipSince=null;    // ไม่ตรวจหาบิลตกหล่นก่อนวันนี้ (วันที่เริ่มใช้ระบบ)
 let canAuditSlip=false;  // มีสิทธิ์ pos.slipaudit หรือเป็นเจ้าของ
+let canSensitive=false;  // มีสิทธิ์ pos.sensitive หรือเป็นเจ้าของ
 
 /* วันที่ "วันนี้" ตามเวลาเครื่อง ไม่ใช่เวลา UTC
    ไทยเร็วกว่า UTC 7 ชั่วโมง ถ้าใช้ toISOString() ตรงๆ ช่วงเที่ยงคืนถึงเจ็ดโมงเช้า
@@ -244,6 +245,8 @@ async function enterFromGrants(emp, gs){
       if(ss&&/^\d{4}-\d{2}-\d{2}$/.test(ss))slipSince=ss;}catch(e){}
   try{const {data:ca}=await sb.rpc('core_pos_slip_can_audit',{p_emp:me.id,p_venue:null});
       canAuditSlip=!!ca;}catch(e){canAuditSlip=false;}
+  try{const {data:cs}=await sb.rpc('core_pos_can_sensitive',{p_emp:me.id});
+      canSensitive=!!cs;}catch(e){canSensitive=false;}
   const {data:vs}=await sb.from('core_venues').select('code,name_th').in('venue_type',['convenience','hotel']).order('sort_order');
   venuesAllowed=(vs||[]).filter(v=>all||set.has(v.code));
   if(!venuesAllowed.length)return false;
@@ -1091,7 +1094,8 @@ async function renderReport(){
   $('pgReport').innerHTML=`<div class="g2" style="align-items:end"><div class="f" style="margin:0"><label>วันที่</label><input class="in" id="rDate" type="date" value="${today}" onchange="loadReport()"></div>
     <button class="mini" style="height:48px" onclick="printSalesReport()">🖨️ รายงานยอดขาย</button>
     <button class="mini" style="height:48px" onclick="backup()">💾 สำรองข้อมูล</button>
-    <button class="mini" style="height:48px" onclick="slipReport()">🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</button></div>
+    <button class="mini" style="height:48px" onclick="slipReport()">🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</button>
+    ${canSensitive?`<button class="mini" style="height:48px" onclick="voidReport()">🔒 รายงานละเอียดอ่อน</button>`:''}</div>
     <div id="repBody" style="margin-top:12px"><div class="empty">กำลังโหลด…</div></div>`;
   loadReport();
 }
@@ -1104,10 +1108,67 @@ async function loadReport(){
   const bills=(data.bills||[]).map(b=>{const dt=new Date(b.at);
     return `<div class="row"><div class="nm" onclick='reprint(${JSON.stringify(b)})' style="cursor:pointer"><b>${esc(b.bill_no)}</b><small>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(b.by||'')} · ${b.pay==='transfer'?'โอน':'เงินสด'}</small></div><b>${baht(b.total)}</b>
       <button class="mini" onclick='reprint(${JSON.stringify(b)})'>พิมพ์</button>
-      ${me.isManager?`<button class="mini" onclick='fixDisc("${b.id}","${esc(b.bill_no)}",${b.total},${b.discount||0})'>🏷</button><button class="mini" style="color:var(--danger)" onclick='voidBill("${b.id}","${esc(b.bill_no)}")'>ลบ</button>`:''}</div>`;}).join('')||'<div class="empty">ยังไม่มีบิล</div>';
+      ${me.isManager?`<button class="mini" onclick='fixDisc("${b.id}","${esc(b.bill_no)}",${b.total},${b.discount||0})'>🏷</button><button class="mini" style="color:var(--danger)" onclick='voidBill("${b.id}","${esc(b.bill_no)}")'>ยกเลิก</button>`:''}</div>`;}).join('')||'<div class="empty">ยังไม่มีบิล</div>';
   $('repBody').innerHTML=`<div class="stat"><div><b>${s.count}</b><span>บิล</span></div><div><b>${baht(s.gross||s.total)}</b><span>ก่อนลด</span></div><div><b>${baht(s.discount||0)}</b><span>🏷 ส่วนลด</span></div><div><b>${baht(s.total)}</b><span>สุทธิ</span></div><div><b>${baht(s.cash)}</b><span>เงินสด</span></div><div><b>${baht(s.transfer)}</b><span>โอน</span></div></div>
     <div class="sec-h">สินค้าขายดี</div>${top}<div class="sec-h">บิลทั้งหมด (แตะเพื่อพิมพ์ซ้ำ)</div>${bills}`;
 }
+/* ===== รายงานละเอียดอ่อน — บิลที่ถูกยกเลิก ===== */
+async function voidReport(from,to){
+  const t=new Date(), iso=d=>todayISO(d?d.getTime():undefined);
+  const f=from||iso(new Date(t.getTime()-6*86400000)), e=to||iso(t);
+  $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🔒 รายงานละเอียดอ่อน</h3>
+    <div style="font-size:12.5px;color:var(--muted);margin:-8px 0 12px">บิลที่ถูกยกเลิก · ใครยกเลิก เมื่อไหร่ เพราะอะไร · บันทึกแก้ไม่ได้</div>
+    <div class="g2" style="margin-bottom:8px">
+      <input class="in" type="date" id="vrF" value="${f}"><input class="in" type="date" id="vrT" value="${e}"></div>
+    <div style="display:flex;gap:7px;margin-bottom:10px">
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="voidReport(todayISO(),todayISO())">วันนี้</button>
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="vrQuick(6)">7 วัน</button>
+      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="vrQuick(29)">30 วัน</button>
+    </div>
+    <button class="mini" style="width:100%;height:42px;margin-bottom:12px" onclick="voidReport($('vrF').value,$('vrT').value)">🔍 ดูรายการ</button>
+    <div id="vrBody"><div class="empty">กำลังโหลด…</div></div>
+    <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
+  try{
+    const {data,error}=await sb.rpc('core_pos_void_report',{p_emp:me.id,p_from:f,p_to:e,p_venue:null});
+    if(error)throw error;
+    const rows=data.rows||[], by=data.by_staff||[], sm=data.summary||{};
+    const head=`<div style="display:flex;gap:7px;margin-bottom:11px;flex-wrap:wrap">
+      <div style="flex:1;min-width:80px;background:#faece9;border-radius:10px;padding:8px;text-align:center">
+        <b style="font-size:20px;color:var(--danger)">${sm.n||0}</b><div style="font-size:11px;color:var(--muted)">บิลถูกยกเลิก</div></div>
+      <div style="flex:1;min-width:80px;background:#faece9;border-radius:10px;padding:8px;text-align:center">
+        <b style="font-size:17px;color:var(--danger)">${baht(sm.amt||0)}</b><div style="font-size:11px;color:var(--muted)">มูลค่ารวม</div></div>
+      <div style="flex:1;min-width:80px;background:#f6efd9;border-radius:10px;padding:8px;text-align:center">
+        <b style="font-size:20px;color:#8a6d1f">${sm.cash||0}</b><div style="font-size:11px;color:var(--muted)">เงินสด ${baht(sm.cash_amt||0)}</div></div>
+      <div style="flex:1;min-width:80px;background:#f6efd9;border-radius:10px;padding:8px;text-align:center">
+        <b style="font-size:20px;color:#8a6d1f">${sm.transfer||0}</b><div style="font-size:11px;color:var(--muted)">โอน (มีสลิป ${sm.had_slip||0})</div></div>
+    </div>`;
+    const staff=by.length?`<div class="sec-h">ใครยกเลิกบ้าง</div>`+by.map(x=>
+      `<div class="row"><div class="nm"><b>${esc(x.by||'—')}</b><small>${x.n} บิล${x.transfer?' · โอน '+x.transfer+' บิล':''}</small></div><b>${baht(x.amt)}</b></div>`).join(''):'';
+    const list=rows.length?rows.map(r=>{
+      const dt=new Date(r.at), st=r.sold_at?new Date(r.sold_at):null;
+      const its=(r.items||[]).slice(0,12).map(i=>
+        `<div style="font-size:12px;color:var(--muted)">• ${esc(i.name||i.product_name||'')} ×${esc(i.qty||'')}</div>`).join('');
+      return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:9px">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <b style="text-decoration:line-through">${esc(r.bill_no||'—')}</b>
+          <span class="pill ${r.pay==='transfer'?'pending':''}">${r.pay==='transfer'?'โอน':'เงินสด'}</span>
+          <b style="margin-left:auto">${baht(r.total)}</b></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">
+          ขายโดย ${esc(r.sold_by||'—')}${st?' · '+st.toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''} · ${esc(r.venue||'')}</div>
+        <div style="font-size:12.5px;background:#faece9;border-radius:8px;padding:7px 9px;margin-top:6px">
+          <b>ยกเลิกโดย ${esc(r.by||'—')}</b> · ${dt.toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+          <div style="margin-top:3px">💬 ${esc(r.reason||'')}</div>
+          ${r.pay==='transfer'?`<div style="margin-top:3px;color:${r.had_slip?'var(--muted)':'var(--danger)'}">${r.had_slip?'✓ บิลนี้มีสลิปแนบไว้':'⚠️ บิลโอนแต่ไม่มีสลิป'}</div>`:''}
+        </div>
+        ${its?`<div style="margin-top:6px">${its}</div>`:''}</div>`;}).join(''):'<div class="empty">ไม่มีบิลถูกยกเลิกในช่วงนี้ 🎉</div>';
+    $('vrBody').innerHTML=head+staff+`<div class="sec-h">รายการ (${rows.length})</div>`+list;
+  }catch(e){ $('vrBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
+}
+function vrQuick(n){
+  const t=new Date();
+  voidReport(todayISO(new Date(t.getTime()-n*86400000).getTime()), todayISO());
+}
+
 /* ===== รายงานบิลโอนที่ต้องตรวจ ===== */
 const SLIPFLAG={mismatch:'ยอดไม่ตรง',noslip:'ไม่มีสลิป',dup:'เลขอ้างอิงซ้ำ',old:'สลิปวันอื่น',noref:'ไม่มีเลขอ้างอิง',unsure:'AI อ่านไม่ชัด',skipped:'ข้ามช่วงทดลอง',noimg:'เก็บรูปไม่สำเร็จ'};
 /* ตรวจว่าตัวอ่านสลิปติดตั้งแล้วและเรียก AI ได้จริง */
@@ -1484,7 +1545,7 @@ async function slipReport(from,to,all,showVoid,review){
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 21 · บังคับแนบ + พนักงานกรอก ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 22 · ยกเลิกบิลมีประวัติ ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
@@ -1631,12 +1692,18 @@ async function fixDisc(id,bill,total,disc){
   if(error){toast(error.message||'ไม่สำเร็จ');return;}
   toast('แก้แล้ว: เต็ม '+data.gross+' − ลด '+data.discount+' = '+data.total+' บาท');renderReport();}
 async function voidBill(id,billNo){
-  if(!confirm('ลบบิลนี้? สต็อกจะถูกคืน และยอดขายจะถูกหักออก'))return;
-  const {error}=await sb.rpc('core_pos_void_bill',{p_emp:me.id,p_sale:id});
-  if(error){toast(error.message||'ลบไม่สำเร็จ');return;}
-  /* ซ่อนสลิปของบิลนี้ด้วย จะได้ไม่ค้างในรายงานตรวจสลิป */
-  if(billNo){ try{ await sb.rpc('core_pos_slip_void',{p_emp:me.id,p_bill_no:billNo}); }catch(e){} }
-  toast('ลบบิลแล้ว');await loadData();loadReport();
+  const note=prompt('ยกเลิกบิล '+billNo+'\n\n'
+    +'สต็อกจะถูกคืน และยอดขายจะถูกหักออก\n'
+    +'บิลจะไม่หายไป — เก็บไว้ดูย้อนหลังได้ว่าใครยกเลิก เพราะอะไร\n\n'
+    +'เขียนเหตุผล (จำเป็น อย่างน้อย 5 ตัวอักษร):','');
+  if(note===null)return;
+  if(note.trim().length<5){alert('ต้องเขียนเหตุผลให้ชัดเจน\n\nเช่น "กดผิด ลูกค้าสั่งอย่างอื่น" หรือ "ลูกค้าขอยกเลิก คืนเงินสดแล้ว"');return;}
+  try{
+    const {error}=await sb.rpc('core_pos_void_bill_logged',{p_emp:me.id,p_sale:id,p_reason:note.trim()});
+    if(error)throw error;
+    toast('ยกเลิกบิลแล้ว');
+    await loadData();loadReport();
+  }catch(e){ alert('ยกเลิกไม่สำเร็จ\n\n'+(e.message||e)); }
 }
 
 /* พิมพ์แบบเปิดหน้าต่างใหม่ — กันปัญหาหน้าขาวจากการพิมพ์แบบไม่รอของเบราว์เซอร์ */
