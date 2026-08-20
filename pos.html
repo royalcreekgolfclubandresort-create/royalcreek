@@ -204,6 +204,8 @@ let slipMode='soft';   // off = ปิดสนิท · soft = ช่วงท�
 let slipSince=null;    // ไม่ตรวจหาบิลตกหล่นก่อนวันนี้ (วันที่เริ่มใช้ระบบ)
 let canAuditSlip=false;  // มีสิทธิ์ pos.slipaudit หรือเป็นเจ้าของ
 let canSensitive=false;  // มีสิทธิ์ pos.sensitive หรือเป็นเจ้าของ
+let canStockAdj=false;   // มีสิทธิ์ pos.stockadj (ปรับสต็อก)
+let canVoidBill=false;   // มีสิทธิ์ pos.approve (ยกเลิกบิล)
 
 /* วันที่ "วันนี้" ตามเวลาเครื่อง ไม่ใช่เวลา UTC
    ไทยเร็วกว่า UTC 7 ชั่วโมง ถ้าใช้ toISOString() ตรงๆ ช่วงเที่ยงคืนถึงเจ็ดโมงเช้า
@@ -247,6 +249,10 @@ async function enterFromGrants(emp, gs){
       canAuditSlip=!!ca;}catch(e){canAuditSlip=false;}
   try{const {data:cs}=await sb.rpc('core_pos_can_sensitive',{p_emp:me.id});
       canSensitive=!!cs;}catch(e){canSensitive=false;}
+  try{const {data:sa}=await sb.rpc('core_pos_can_stockadj',{p_emp:me.id,p_venue:null});
+      canStockAdj=!!sa;}catch(e){canStockAdj=me.isManager||me.isOwner;}
+  try{const {data:vb}=await sb.rpc('core_pos_can_void',{p_emp:me.id,p_venue:null});
+      canVoidBill=!!vb;}catch(e){canVoidBill=me.isManager||me.isOwner;}
   const {data:vs}=await sb.from('core_venues').select('code,name_th').in('venue_type',['convenience','hotel']).order('sort_order');
   venuesAllowed=(vs||[]).filter(v=>all||set.has(v.code));
   if(!venuesAllowed.length)return false;
@@ -833,7 +839,7 @@ function paintStockList(){
 async function renderStock(){
   $('pgStock').innerHTML=`<div class="g2" style="margin-bottom:12px"><button class="addbtn" style="margin:0" onclick="addProdSheet()">＋ เพิ่มสินค้า</button><button class="addbtn" style="margin:0;border-style:solid;color:var(--green-2);border-color:var(--green-2)" onclick="printStockReport()">🖨️ รายงานสต็อก</button></div>
     <div style="font-size:12px;color:var(--muted);margin:-4px 2px 12px">📥 เพิ่มสต็อกผ่าน “เบิกของ” · ของสด (ไข่ต้ม/กล้วย) เติม-ลดเองได้ · ลูกกอล์ฟถาด เติมเองได้ (ลดผ่านการขาย)${me.isOwner?' · เจ้าของ: เติม/ลดได้ทุกตัว':''}</div>
-    <div style="display:flex;gap:8px"><button class="mini" style="height:46px;flex:none" onclick="dayHist()">📅 รายวัน</button><button class="mini" onclick="renderCount()" style="${me.isManager||me.isOwner?'':'display:none'}">📋 นับสต็อก</button><input class="in" id="stkSearch" placeholder="🔍 ค้นหาสินค้าในสต็อก" value="${esc(stkQ)}" oninput="stkQ=this.value;paintStockList()" autocomplete="off"></div>
+    <div style="display:flex;gap:8px"><button class="mini" style="height:46px;flex:none" onclick="dayHist()">📅 รายวัน</button><button class="mini" onclick="renderCount()" style="${canStockAdj?'':'display:none'}">📋 นับสต็อก</button><input class="in" id="stkSearch" placeholder="🔍 ค้นหาสินค้าในสต็อก" value="${esc(stkQ)}" oninput="stkQ=this.value;paintStockList()" autocomplete="off"></div>
     <div id="stkList"></div>
     <div class="sec-h">การเคลื่อนไหวล่าสุด</div><div id="moves"><div class="empty">กำลังโหลด…</div></div>`;
   paintStockList();
@@ -1108,7 +1114,7 @@ async function loadReport(){
   const bills=(data.bills||[]).map(b=>{const dt=new Date(b.at);
     return `<div class="row"><div class="nm" onclick='reprint(${JSON.stringify(b)})' style="cursor:pointer"><b>${esc(b.bill_no)}</b><small>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(b.by||'')} · ${b.pay==='transfer'?'โอน':'เงินสด'}</small></div><b>${baht(b.total)}</b>
       <button class="mini" onclick='reprint(${JSON.stringify(b)})'>พิมพ์</button>
-      ${me.isManager?`<button class="mini" onclick='fixDisc("${b.id}","${esc(b.bill_no)}",${b.total},${b.discount||0})'>🏷</button><button class="mini" style="color:var(--danger)" onclick='voidBill("${b.id}","${esc(b.bill_no)}")'>ยกเลิก</button>`:''}</div>`;}).join('')||'<div class="empty">ยังไม่มีบิล</div>';
+      ${canVoidBill?`<button class="mini" onclick='fixDisc("${b.id}","${esc(b.bill_no)}",${b.total},${b.discount||0})'>🏷</button><button class="mini" style="color:var(--danger)" onclick='voidBill("${b.id}","${esc(b.bill_no)}")'>ยกเลิก</button>`:''}</div>`;}).join('')||'<div class="empty">ยังไม่มีบิล</div>';
   $('repBody').innerHTML=`<div class="stat"><div><b>${s.count}</b><span>บิล</span></div><div><b>${baht(s.gross||s.total)}</b><span>ก่อนลด</span></div><div><b>${baht(s.discount||0)}</b><span>🏷 ส่วนลด</span></div><div><b>${baht(s.total)}</b><span>สุทธิ</span></div><div><b>${baht(s.cash)}</b><span>เงินสด</span></div><div><b>${baht(s.transfer)}</b><span>โอน</span></div></div>
     <div class="sec-h">สินค้าขายดี</div>${top}<div class="sec-h">บิลทั้งหมด (แตะเพื่อพิมพ์ซ้ำ)</div>${bills}`;
 }
@@ -1545,7 +1551,7 @@ async function slipReport(from,to,all,showVoid,review){
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 22 · ยกเลิกบิลมีประวัติ ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 23 · แยกสิทธิ์ปรับสต็อก ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
