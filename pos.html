@@ -1547,13 +1547,13 @@ async function purgeSlips(mode){
 async function slipReport(from,to,all,showVoid,review,venueSel){
   /* พนักงานทั่วไปไม่มีปุ่มเลือกสถานะการตรวจ ถ้าล็อกไว้ที่ "รอตรวจ"
      บิลที่หัวหน้าตรวจผ่านแล้วจะหายไปจากจอพนักงานโดยไม่มีอะไรบอก */
-  const rv=canAuditSlip?(review||spReview||'pending'):'all';
-  if(canAuditSlip)spReview=rv;
+  const rv='all';        /* แสดงทุกบิลเสมอ */
+  spReview='all';
   if(venueSel!==undefined)spVenue=venueSel;
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 24 · แยกซุ้ม + กันบิลหลุด ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 25 · จัดหน้าใหม่ ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
@@ -1581,21 +1581,15 @@ async function slipReport(from,to,all,showVoid,review,venueSel){
       <div id="pingBox" style="font-size:12px;margin-top:7px"></div></div>`:''}
     <div class="g2" style="margin-bottom:8px">
       <input class="in" type="date" id="spF" value="${f}"><input class="in" type="date" id="spT" value="${e}"></div>
-    <div style="display:flex;gap:7px;margin-bottom:10px">
-      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(0)">วันนี้</button>
-      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(1)">เมื่อวาน</button>
-      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(6)">7 วัน</button>
-      <button class="mini" style="flex:1;height:38px;font-size:12.5px" onclick="spQuick(29)">30 วัน</button>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button class="mini" style="flex:1;height:36px;font-size:12px" onclick="spQuick(0)">วันนี้</button>
+      <button class="mini" style="flex:1;height:36px;font-size:12px" onclick="spQuick(1)">เมื่อวาน</button>
+      <button class="mini" style="flex:1;height:36px;font-size:12px" onclick="spQuick(6)">7 วัน</button>
+      <button class="mini" style="flex:1;height:36px;font-size:12px" onclick="spQuick(29)">30 วัน</button>
     </div>
-    <div class="togg"><input type="checkbox" id="spAll" ${all?'checked':''} onchange="spGo()">
-      <span>แสดงทุกบิล (ไม่ใช่เฉพาะที่มีปัญหา)</span></div>
-    ${canAuditSlip?`<div style="display:flex;gap:6px;margin-bottom:10px">
-      ${[['pending','รอตรวจ'],['chase','รอตามเก็บ'],['done','ตรวจแล้ว'],['all','ทั้งหมด']].map(([k,l])=>
-        `<button class="mini" style="flex:1;height:40px;font-size:12.5px;${(rv===k)?'background:var(--green-2);color:#fff':''}" onclick="spGo('${k}')">${l}</button>`).join('')}
-    </div>`:''}
-    ${canAuditSlip?`<div class="togg"><input type="checkbox" id="spVoid" ${showVoid?'checked':''} onchange="spGo()">
-      <span>แสดงบิลที่ลบไปแล้วด้วย</span></div>`:''}
-    <button class="mini" style="width:100%;height:44px;margin-bottom:12px" onclick="spGo()">🔍 ดูรายการ</button>
+    <div id="spVenues"></div>
+    <input type="checkbox" id="spAll" checked style="display:none">
+    ${canAuditSlip?`<input type="checkbox" id="spVoid" ${showVoid?'checked':''} style="display:none">`:''}
     <div id="spBody"><div class="empty">กำลังโหลด…</div></div>
     ${me.isOwner?`<div style="border:1.5px solid var(--line);border-radius:13px;padding:11px 13px;margin-top:14px">
       <b style="font-size:14px">🧹 ล้างรายการในช่วงวันที่ที่เลือก</b>
@@ -1607,95 +1601,113 @@ async function slipReport(from,to,all,showVoid,review,venueSel){
       </div></div>`:''}
     <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
   try{
-    const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid,p_review:rv,p_venue:spVenue});
+    const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:false,p_show_voided:!!showVoid,p_review:rv,p_venue:spVenue});
     if(error)throw error;
     const rows=data.rows||[], by=data.by_staff||[];
-    const staff=(by.length&&data.can_audit)?`<div class="sec-h">สรุปคนกดผ่าน</div>`+by.map(x=>
-      `<div class="row"><div class="nm"><b>${esc(x.by||'—')}</b></div><span style="color:var(--muted)">${x.n} ครั้ง</span><b style="color:var(--danger)">${baht(x.amt)}</b></div>`).join(''):'';
-    const list=rows.length?rows.map(r=>{
-      const dt=new Date(r.at);
-      const tags=(r.flags||[]).map(k=>`<span class="pill ${k==='dup'||k==='noslip'?'rejected':'pending'}" style="margin-right:5px">${SLIPFLAG[k]||k}</span>`).join('');
-      const its=(r.items||[]).map(i=>{
-        const thumb=i.img
-          ? `<a href="${i.img}" target="_blank" style="flex:none"><img src="${i.img}" style="width:34px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block" onerror="this.style.display='none';this.parentNode.insertAdjacentHTML('beforeend','<div style=\'width:34px;height:44px;border-radius:6px;border:1px dashed var(--danger);color:var(--danger);font-size:9px;display:flex;align-items:center;justify-content:center;text-align:center\'>เปิด<br>ไม่ได้</div>')"></a>`
-          : `<div style="width:34px;height:44px;border-radius:6px;border:1px dashed var(--line);color:var(--muted);font-size:9px;display:flex;align-items:center;justify-content:center;text-align:center;flex:none">ไม่มี<br>รูป</div>`;
-        const manDone=!!(i.man_ref||i.man_amount);
-        const needMan=canAuditSlip && !manDone && (!i.ref || i.ai_ok===false || !i.amount);
-        const manBox=manDone
-          ? `<div style="background:#eef5f0;border-radius:8px;padding:6px 9px;margin:4px 0 2px;font-size:12px">
-               👁️ <b>คนตรวจอ่านเอง:</b> ${i.man_amount!=null?baht(i.man_amount):'—'} ${esc(i.man_time||'')}
-               ${i.man_ref?'<br>🔖 '+esc(i.man_ref):''}
-               <span style="color:var(--muted)"> · ${esc(i.man_by||'')}</span></div>`
-          : (needMan
-            ? `<div style="background:#fbf6e8;border:1px dashed #d9a441;border-radius:9px;padding:8px 9px;margin:5px 0 2px">
-                 <div style="font-size:11.5px;color:#8a6d1f;margin-bottom:6px"><b>AI อ่านไม่ได้</b> — เปิดรูปแล้วพิมพ์ตามที่เห็น ระบบจะเช็คให้ว่าเคยใช้แล้วหรือยัง</div>
-                 <div style="display:flex;gap:5px;margin-bottom:5px">
-                   <input class="in" id="ma_${i.id}" placeholder="ยอด" type="number" inputmode="decimal" style="flex:1;height:38px;font-size:13px">
-                   <input class="in" id="mt_${i.id}" placeholder="เวลา 14:37" style="flex:1;height:38px;font-size:13px">
-                 </div>
-                 <input class="in" id="mr_${i.id}" placeholder="เลขอ้างอิงบนสลิป" style="height:38px;font-size:13px;margin-bottom:5px">
-                 <button class="mini" style="width:100%;height:38px;font-size:12.5px" onclick="manCheck('${i.id}')">🔍 ตรวจว่าเคยใช้แล้วหรือยัง</button>
-                 <div id="mres_${i.id}" style="font-size:12px;margin-top:5px"></div>
-               </div>`
-            : '');
-        return `<div style="font-size:12px;color:var(--muted);padding:4px 0;border-bottom:1px solid #f0efe9">
-          <div style="display:flex;gap:8px;align-items:center">
-            ${thumb}
-            <div style="flex:1;min-width:0">🤖 ${i.amount?baht(i.amount):'<b style="color:var(--danger)">อ่านยอดไม่ได้</b>'} · ${esc(i.bank||'')} ${esc(i.at_txt||'')}<br>🔖 ${esc(i.ref||'อ่านเลขไม่ได้')}${i.dup_of?' <b style="color:var(--danger)">ซ้ำกับบิล '+esc(i.dup_of)+'</b>':''}</div>
-          </div>${manBox}
-        </div>`;}).join('')||'<div style="font-size:12px;color:var(--muted);padding:4px 0">ไม่มีสลิปแนบ</div>';
-      return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:9px${r.voided?';opacity:.55;background:#f4f4f2':''}">
-        <div style="display:flex;align-items:baseline;gap:8px">
-          <b style="${r.voided?'text-decoration:line-through':''}">${esc(r.bill_no)}</b>
-          ${r.voided?'<span class="pill rejected">บิลถูกลบแล้ว</span>':''}
-          <span style="font-size:12px;color:var(--muted)">${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(r.by||'')}${r.mine?' <b style="color:var(--green-2)">(ของฉัน)</b>':''} · ${esc(r.venue||'')}</span>
-          <b style="margin-left:auto">${baht(r.bill_total)}</b>
-          ${me.isOwner?`<button class="mini" style="flex:none;color:var(--danger);padding:2px 8px" onclick="delSlipRow('${r.id}','${esc(r.bill_no)}')">🗑</button>`:''}</div>
-        <div style="margin:6px 0">${tags}</div>
-        <div style="font-size:13px">สลิปรวม ${baht(r.slip_total)}${Math.abs(Number(r.diff))>=0.01?` · <b style="color:var(--danger)">${Number(r.diff)>0?'ขาด '+baht(r.diff):'เกิน '+baht(-r.diff)}</b>`:''}</div>
-        ${r.reason?`<div style="font-size:12.5px;background:#f6efd9;border-radius:8px;padding:6px 9px;margin-top:6px">💬 พนักงาน: ${esc(r.reason)}</div>`:''}
-        <div style="margin-top:6px">${its}</div>
-        ${reviewBox(r)}</div>`;}).join(''):'<div class="empty">ไม่พบรายการ 🎉</div>';
-    const vc=Number(data.voided_count)||0;
-    const vnote=(vc&&!showVoid&&data.can_audit)?`<div style="font-size:12px;color:var(--muted);background:#f4f4f2;border-radius:9px;padding:7px 10px;margin-bottom:9px">ซ่อนบิลที่ถูกลบไปแล้วอยู่ ${vc} ใบ · ติ๊กช่องด้านบนถ้าอยากดู</div>`:'';
-    const filterNote=(!all && !rows.length)?`<div style="background:#f6efd9;border:1px solid #d9a441;border-radius:11px;padding:9px 12px;font-size:12.5px;color:#8a6d1f;margin-bottom:11px">
-      กำลังแสดง<b>เฉพาะบิลที่มีปัญหา</b> · บิลที่ยอดตรงและไม่มีข้อผิดพลาดจะไม่โผล่ตรงนี้<br>
-      ติ๊ก "แสดงทุกบิล" ด้านบนถ้าอยากเห็นทั้งหมด</div>`:'';
-    const vtxt=(data.venues&&Array.isArray(data.venues)&&data.venues.length)?data.venues.join(', '):'ทุกร้าน';
-    const scopeNote=(!data.can_audit)?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
-      <b>สลิปของซุ้ม ${esc(vtxt)}</b> · ย้อนหลังได้ 7 วัน
-      <div style="color:var(--muted);margin-top:3px">เห็นทุกบิลของซุ้ม รวมวันที่คนอื่นมาทำแทน · ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งคนตรวจสลิป · แก้ไขเองไม่ได้</div></div>`:'';
-    /* ปุ่มเลือกซุ้ม — โผล่เมื่อมีมากกว่า 1 ซุ้ม */
+    const c=data.counts||{};
+
+    /* ---- ปุ่มเลือกซุ้ม ---- */
     const vl=data.venue_list||[];
     const vbox=$('spVenues');
     if(vbox){
       if(vl.length>1){
         const vnm=cd=>{const v=(venuesAllowed||[]).find(x=>x.code===cd);return v?v.name_th:cd;};
-        const tot=vl.reduce((a,x)=>a+(Number(x.pending)||0),0);
-        const btn=(code,label,n,on)=>`<button class="mini" style="flex:1;min-width:88px;height:46px;font-size:12.5px;${on?'background:var(--green-2);color:#fff':''}" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid')?$('spVoid').checked:false,spReview,${code===null?'null':"'"+code+"'"})">${label}${n?' <b>'+n+'</b>':''}</button>`;
-        vbox.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:5px">เลือกซุ้ม · ตัวเลข = รอตรวจ</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px">
-            ${btn(null,'ทุกซุ้ม',tot,!spVenue)}
-            ${vl.map(x=>btn(esc(x.venue),esc(vnm(x.venue)),x.pending,spVenue===x.venue)).join('')}
+        const vbtn=(code,label,n,on)=>`<button class="mini" style="flex:1;min-width:74px;height:48px;font-size:13px;font-weight:700;line-height:1.2;${on?'background:var(--green-2);color:#fff':''}" onclick="slipReport($('spF').value,$('spT').value,true,$('spVoid')?$('spVoid').checked:false,'all',${code===null?'null':"'"+code+"'"})">${label}${n?`<div style="font-size:10px;font-weight:600;color:${on?'#ffd9d4':'var(--danger)'}">${n} ต้องตรวจ</div>`:''}</button>`;
+        const tot=vl.reduce((a2,x)=>a2+(Number(x.pending)||0),0);
+        vbox.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            ${vbtn(null,'ทั้งหมด',tot,!spVenue)}
+            ${vl.map(x=>vbtn(esc(x.venue),esc(vnm(x.venue)),x.pending,spVenue===x.venue)).join('')}
           </div>`;
       }else vbox.innerHTML='';
     }
-    const c=data.counts||{};
-    const cntNote=data.can_audit?`<div style="display:flex;gap:7px;margin-bottom:11px;flex-wrap:wrap">
-      <div style="flex:1;min-width:76px;background:#f6efd9;border-radius:10px;padding:7px 9px;text-align:center">
-        <b style="font-size:19px;color:#8a6d1f">${c.pending||0}</b><div style="font-size:11px;color:var(--muted)">รอตรวจ</div></div>
-      <div style="flex:1;min-width:76px;background:#f6efd9;border-radius:10px;padding:7px 9px;text-align:center">
-        <b style="font-size:19px;color:#8a6d1f">${c.chase||0}</b><div style="font-size:11px;color:var(--muted)">ตามเก็บ ${baht(c.chase_amt||0)}</div></div>
-      <div style="flex:1;min-width:76px;background:#e4f0e9;border-radius:10px;padding:7px 9px;text-align:center">
-        <b style="font-size:19px;color:var(--ok)">${c.ok||0}</b><div style="font-size:11px;color:var(--muted)">ผ่านแล้ว</div></div>
-      <div style="flex:1;min-width:76px;background:#faece9;border-radius:10px;padding:7px 9px;text-align:center">
-        <b style="font-size:19px;color:var(--danger)">${c.loss||0}</b><div style="font-size:11px;color:var(--muted)">เสียหาย ${baht(c.loss_amt||0)}</div></div>
+
+    /* ---- แถบสรุป 4 ช่อง ---- */
+    const cntNote=data.can_audit?`<div style="display:flex;gap:6px;margin-bottom:12px">
+      <div style="flex:1;background:${(c.pending||0)?'#fdf4f3':'#f4f4f2'};border-radius:10px;padding:8px 4px;text-align:center">
+        <b style="font-size:20px;color:${(c.pending||0)?'var(--danger)':'var(--muted)'}">${c.pending||0}</b>
+        <div style="font-size:10.5px;color:var(--muted)">ต้องตรวจ</div></div>
+      <div style="flex:1;background:#f6efd9;border-radius:10px;padding:8px 4px;text-align:center">
+        <b style="font-size:20px;color:#8a6d1f">${c.chase||0}</b>
+        <div style="font-size:10.5px;color:var(--muted)">ตามเก็บ</div></div>
+      <div style="flex:1;background:#e4f0e9;border-radius:10px;padding:8px 4px;text-align:center">
+        <b style="font-size:20px;color:var(--ok)">${c.ok||0}</b>
+        <div style="font-size:10.5px;color:var(--muted)">ผ่านแล้ว</div></div>
+      <div style="flex:1;background:#faece9;border-radius:10px;padding:8px 4px;text-align:center">
+        <b style="font-size:20px;color:var(--danger)">${c.loss||0}</b>
+        <div style="font-size:10.5px;color:var(--muted)">เสียหาย</div></div>
     </div>`:'';
-    $('spBody').innerHTML=cntNote+filterNote+scopeNote+staff+
-      `<div id="spSum"></div><div id="spVenues"></div><div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
-    canAuditSlip=!!data.can_audit;
-    /* สิทธิ์ตรวจเพิ่งรู้ตอนนี้ (ตอนวาดจอยังไม่รู้) ต้องวาดใหม่ ไม่งั้นปุ่มของคนตรวจจะไม่โผล่จนกว่าจะปิดแล้วเปิดใหม่ */
-    if(canAuditSlip!==wasAudit){ slipReport(f,e,all,showVoid,review); return; }
+
+    const scopeNote=(!data.can_audit)?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
+      <b>สลิปของซุ้มเรา</b> · ย้อนหลังได้ 7 วัน
+      <div style="color:var(--muted);margin-top:3px">เห็นทุกบิลของซุ้ม รวมวันที่คนอื่นมาทำแทน · ถ้าบิลไหนขึ้นแดง ให้แจ้งคนตรวจสลิป</div></div>`:'';
+
+    const staff=(by.length&&data.can_audit)?`<div class="sec-h">สรุปคนที่มีบิลติดปัญหา</div>`+by.map(x=>
+      `<div class="row"><div class="nm"><b>${esc(x.by||'—')}</b></div><span style="color:var(--muted)">${x.n} ครั้ง</span><b style="color:var(--danger)">${baht(x.amt)}</b></div>`).join(''):'';
+
+    /* ---- รายการบิล ---- */
+    const list=rows.length?rows.map(r=>{
+      const dt=new Date(r.at);
+      const bad=(r.flags||[]).length>0;
+      const done=r.review&&r.review!=='pending';
+      const hard=(r.flags||[]).includes('dup')||(r.flags||[]).includes('auto');
+      const bar = !bad ? 'var(--line)'
+                : done ? (r.review==='ok'?'var(--ok)':r.review==='loss'?'var(--danger)':'#d9a441')
+                : (hard?'var(--danger)':'#d9a441');
+      const bg  = (bad&&!done) ? (hard?'#fdf4f3':'#fdfaf0') : '#fff';
+
+      const tags=(r.flags||[]).map(k=>
+        `<span style="display:inline-block;background:${hard?'#f7dcd8':'#f3e9cd'};color:${hard?'var(--danger)':'#8a6d1f'};border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;margin:0 4px 3px 0">${SLIPFLAG[k]||k}</span>`).join('');
+
+      const its=(r.items||[]).map(i=>{
+        const manDone=!!(i.man_ref||i.man_amount);
+        const needMan=canAuditSlip && !manDone && (!i.ref || i.ai_ok===false || !i.amount);
+        const thumb=i.img
+          ? `<a href="${i.img}" target="_blank" style="flex:none"><img src="${i.img}" style="width:42px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block"></a>`
+          : `<div style="width:42px;height:54px;border-radius:8px;border:1px dashed var(--line);color:var(--muted);font-size:9px;display:flex;align-items:center;justify-content:center;text-align:center;flex:none">ไม่มี<br>รูป</div>`;
+        const manBox=manDone
+          ? `<div style="background:#eef5f0;border-radius:7px;padding:5px 8px;margin-top:5px;font-size:11.5px">
+               👁️ คนตรวจอ่าน: <b>${i.man_amount!=null?baht(i.man_amount):'—'}</b> ${esc(i.man_time||'')}${i.man_ref?' · '+esc(i.man_ref):''}
+               <span style="color:var(--muted)">(${esc(i.man_by||'')})</span></div>`
+          : (needMan
+            ? `<div style="background:#fbf6e8;border:1px dashed #d9a441;border-radius:8px;padding:7px 8px;margin-top:5px">
+                 <div style="font-size:11px;color:#8a6d1f;margin-bottom:5px">AI อ่านไม่ครบ — เปิดรูปแล้วพิมพ์ตามที่เห็น</div>
+                 <div style="display:flex;gap:4px;margin-bottom:4px">
+                   <input class="in" id="ma_${i.id}" placeholder="ยอด" type="number" inputmode="decimal" style="flex:1;height:34px;font-size:12.5px">
+                   <input class="in" id="mt_${i.id}" placeholder="เวลา" style="flex:1;height:34px;font-size:12.5px">
+                 </div>
+                 <input class="in" id="mr_${i.id}" placeholder="รหัสอ้างอิง" style="height:34px;font-size:12.5px;margin-bottom:4px">
+                 <button class="mini" style="width:100%;height:34px;font-size:12px" onclick="manCheck('${i.id}')">🔍 ตรวจว่าเคยใช้แล้วหรือยัง</button>
+                 <div id="mres_${i.id}" style="font-size:11.5px;margin-top:4px"></div>
+               </div>`
+            : '');
+        return `<div style="display:flex;gap:9px;padding:7px 0;border-top:1px solid #f0efe9">
+          ${thumb}
+          <div style="flex:1;min-width:0;font-size:12px">
+            <b style="font-size:14px">${i.amount?baht(i.amount):'<span style="color:var(--danger)">อ่านยอดไม่ได้</span>'}</b>
+            <span style="color:var(--muted)"> · ${esc(i.bank||'')} ${esc(i.at_txt||'')}</span>
+            <div style="color:var(--muted);word-break:break-all">🔖 ${esc(i.ref||i.emp_ref||'ไม่มีเลข')}${i.dup_of?' <b style="color:var(--danger)">ซ้ำกับ '+esc(i.dup_of)+'</b>':''}</div>
+            ${manBox}
+          </div></div>`;}).join('');
+
+      return `<div style="border:1px solid ${bar};border-left:4px solid ${bar};background:${bg};border-radius:12px;padding:11px 13px;margin-bottom:10px${r.voided?';opacity:.5':''}">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <b style="font-size:15px${r.voided?';text-decoration:line-through':''}">${esc(r.bill_no)}</b>
+          ${r.voided?'<span class="pill rejected">ถูกลบ</span>':''}
+          <b style="margin-left:auto;font-size:16px">${baht(r.bill_total)}</b>
+          ${me.isOwner?`<button class="mini" style="flex:none;color:var(--danger);padding:2px 7px" onclick="delSlipRow('${r.id}','${esc(r.bill_no)}')">🗑</button>`:''}
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
+          ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(r.by||'')}${r.mine?' <b style="color:var(--green-2)">(ของฉัน)</b>':''} · ${esc(r.venue||'')}
+        </div>
+        ${bad?`<div style="margin-top:6px">${tags}</div>`:''}
+        ${(bad&&Math.abs(Number(r.diff))>=0.01)?`<div style="font-size:13px;margin-top:3px">สลิปรวม ${baht(r.slip_total)} · <b style="color:var(--danger)">${Number(r.diff)>0?'ขาด '+baht(r.diff):'เกิน '+baht(-r.diff)}</b></div>`:''}
+        ${r.reason?`<div style="font-size:12px;background:rgba(0,0,0,.03);border-radius:7px;padding:5px 8px;margin-top:5px">💬 ${esc(r.reason)}</div>`:''}
+        ${its}
+        ${reviewBox(r)}</div>`;}).join(''):'<div class="empty">ไม่มีบิลโอนในช่วงนี้</div>';
+
+    $('spBody').innerHTML=cntNote+scopeNote+staff+
+      `<div id="spVenuesX"></div><div id="spDup"></div><div id="spGap"></div>
+       <div class="sec-h">บิลโอน (${rows.length})</div>`+list;
     if(data.can_audit){ findMissingSlips(f,e); findDupBills(f,e); }
   }catch(e){ $('spBody').innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message||e)+'</div>'; }
 }
