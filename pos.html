@@ -1176,7 +1176,7 @@ function vrQuick(n){
 }
 
 /* ===== รายงานบิลโอนที่ต้องตรวจ ===== */
-const SLIPFLAG={mismatch:'ยอดไม่ตรง',noslip:'ไม่มีสลิป',dup:'เลขอ้างอิงซ้ำ',old:'สลิปวันอื่น',noref:'ไม่มีเลขอ้างอิง',unsure:'AI อ่านไม่ชัด',skipped:'ข้ามช่วงทดลอง',noimg:'เก็บรูปไม่สำเร็จ'};
+const SLIPFLAG={mismatch:'ยอดไม่ตรง',noslip:'ไม่มีสลิป',dup:'เลขอ้างอิงซ้ำ',old:'สลิปวันอื่น',noref:'ไม่มีเลขอ้างอิง',unsure:'AI อ่านไม่ชัด',skipped:'ข้ามช่วงทดลอง',noimg:'เก็บรูปไม่สำเร็จ',auto:'⚠️ ไม่ผ่านหน้าแนบสลิป'};
 /* ตรวจว่าตัวอ่านสลิปติดตั้งแล้วและเรียก AI ได้จริง */
 /* ตรวจว่าอัปโหลดรูปขึ้นพื้นที่เก็บไฟล์ได้จริงไหม */
 async function saveSince(){
@@ -1187,7 +1187,7 @@ async function saveSince(){
     if(error)throw error;
     slipSince=v;
     toast('ตั้งวันเริ่มใช้ระบบเป็น '+v);
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4],a[5]);
   }catch(e){ toast('บันทึกไม่สำเร็จ: '+(e.message||e)); }
 }
 
@@ -1394,16 +1394,17 @@ function spQuick(n){
   if(n===0){ f=e=todayISO(); }
   else if(n===1){ f=e=todayISO(t-86400000); }
   else { f=todayISO(t-n*86400000); e=todayISO(); }
-  const a=spArgs(); slipReport(f,e,a[2],a[3],a[4]);
+  const a=spArgs(); slipReport(f,e,a[2],a[3],a[4],a[5]);
 }
 
 let spReview='pending';
+let spVenue=null;      // null = ทุกซุ้ม
 function spArgs(){return [$('spF')?$('spF').value:null, $('spT')?$('spT').value:null,
-  $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false, spReview];}
+  $('spAll')?$('spAll').checked:false, $('spVoid')?$('spVoid').checked:false, spReview, spVenue];}
 /* โหลดรายการใหม่ด้วยค่าที่กรอกอยู่บนจอ
    ต้องอ่านผ่าน spArgs() เท่านั้น เพราะช่อง "แสดงบิลที่ลบแล้ว" มีเฉพาะคนที่มีสิทธิ์ตรวจ
    ถ้าไปอ่าน $('spVoid').checked ตรงๆ พนักงานทั่วไปจะกดปุ่มแล้วค้าง รายการไม่ขึ้น */
-function spGo(rv){const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],rv||a[4]);}
+function spGo(rv){const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],rv||a[4],a[5]);}
 
 /* คนตรวจอ่านสลิปด้วยตาแล้วพิมพ์เอง — ปิดช่องโหว่ "จงใจถ่ายเบลอ"
    ค่าที่พิมพ์เก็บคนละช่องกับค่าที่ AI อ่าน ไม่ทับกัน และแก้ทีหลังไม่ได้ */
@@ -1455,7 +1456,7 @@ async function manSave(itemId){
       {p_emp:me.id,p_item:itemId,p_ref:ref||null,p_amount:amt,p_time:tm||null});
     if(error)throw error;
     toast(data&&data.dup?'บันทึกแล้ว — ล็อกไม่ให้กดผ่าน':'บันทึกแล้ว');
-    const g=spArgs(); slipReport(g[0],g[1],g[2],g[3],g[4]);
+    const g=spArgs(); slipReport(g[0],g[1],g[2],g[3],g[4],g[5]);
   }catch(e){ alert('บันทึกไม่สำเร็จ\n\n'+(e.message||e)); }
 }
 
@@ -1500,7 +1501,7 @@ async function unflagDup(id){
     const {error}=await sb.rpc('core_pos_slip_unflag_dup',{p_emp:me.id,p_id:id,p_note:note.trim()});
     if(error)throw error;
     toast('ปลดธงแล้ว');
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4],a[5]);
   }catch(e){ alert('ปลดธงไม่สำเร็จ\n\n'+(e.message||e)); }
 }
 
@@ -1513,7 +1514,7 @@ async function doReview(id,status){
     const {error}=await sb.rpc('core_pos_slip_review',{p_emp:me.id,p_id:id,p_status:status,p_note:note||null});
     if(error)throw error;
     toast('บันทึกแล้ว: '+NAME[status]);
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4],a[5]);
   }catch(e){ alert('บันทึกไม่สำเร็จ\n\n'+(e.message||e)); }
 }
 
@@ -1523,7 +1524,7 @@ async function delSlipRow(id,billNo){
     const {error}=await sb.rpc('core_pos_slip_delete',{p_emp:me.id,p_id:id});
     if(error)throw error;
     toast('ลบแล้ว');
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4],a[5]);
   }catch(e){ toast('ลบไม่สำเร็จ: '+(e.message||e)); }
 }
 
@@ -1539,19 +1540,20 @@ async function purgeSlips(mode){
     const {data:d,error}=await sb.rpc('core_pos_slip_purge',{p_emp:me.id,p_from:f,p_to:t,p_mode:mode});
     if(error)throw error;
     toast('ลบไปแล้ว '+d+' รายการ');
-    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4]);
+    const a=spArgs(); slipReport(a[0],a[1],a[2],a[3],a[4],a[5]);
   }catch(e){ toast('ลบไม่สำเร็จ: '+(e.message||e)); }
 }
 
-async function slipReport(from,to,all,showVoid,review){
+async function slipReport(from,to,all,showVoid,review,venueSel){
   /* พนักงานทั่วไปไม่มีปุ่มเลือกสถานะการตรวจ ถ้าล็อกไว้ที่ "รอตรวจ"
      บิลที่หัวหน้าตรวจผ่านแล้วจะหายไปจากจอพนักงานโดยไม่มีอะไรบอก */
   const rv=canAuditSlip?(review||spReview||'pending'):'all';
   if(canAuditSlip)spReview=rv;
+  if(venueSel!==undefined)spVenue=venueSel;
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 23 · แยกสิทธิ์ปรับสต็อก ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 24 · แยกซุ้ม + กันบิลหลุด ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
@@ -1605,7 +1607,7 @@ async function slipReport(from,to,all,showVoid,review){
       </div></div>`:''}
     <button class="ghost" onclick="closeModal()">ปิด</button></div></div>`;
   try{
-    const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid,p_review:rv});
+    const {data,error}=await sb.rpc('core_pos_slip_report',{p_emp:me.id,p_from:f,p_to:e,p_only_problem:!all,p_show_voided:!!showVoid,p_review:rv,p_venue:spVenue});
     if(error)throw error;
     const rows=data.rows||[], by=data.by_staff||[];
     const staff=(by.length&&data.can_audit)?`<div class="sec-h">สรุปคนกดผ่าน</div>`+by.map(x=>
@@ -1663,6 +1665,21 @@ async function slipReport(from,to,all,showVoid,review){
     const scopeNote=(!data.can_audit)?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;font-size:12.5px;margin-bottom:11px">
       <b>สลิปของซุ้ม ${esc(vtxt)}</b> · ย้อนหลังได้ 7 วัน
       <div style="color:var(--muted);margin-top:3px">เห็นทุกบิลของซุ้ม รวมวันที่คนอื่นมาทำแทน · ถ้าบิลไหนขึ้นธงเตือน ให้แจ้งคนตรวจสลิป · แก้ไขเองไม่ได้</div></div>`:'';
+    /* ปุ่มเลือกซุ้ม — โผล่เมื่อมีมากกว่า 1 ซุ้ม */
+    const vl=data.venue_list||[];
+    const vbox=$('spVenues');
+    if(vbox){
+      if(vl.length>1){
+        const vnm=cd=>{const v=(venuesAllowed||[]).find(x=>x.code===cd);return v?v.name_th:cd;};
+        const tot=vl.reduce((a,x)=>a+(Number(x.pending)||0),0);
+        const btn=(code,label,n,on)=>`<button class="mini" style="flex:1;min-width:88px;height:46px;font-size:12.5px;${on?'background:var(--green-2);color:#fff':''}" onclick="slipReport($('spF').value,$('spT').value,$('spAll').checked,$('spVoid')?$('spVoid').checked:false,spReview,${code===null?'null':"'"+code+"'"})">${label}${n?' <b>'+n+'</b>':''}</button>`;
+        vbox.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:5px">เลือกซุ้ม · ตัวเลข = รอตรวจ</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px">
+            ${btn(null,'ทุกซุ้ม',tot,!spVenue)}
+            ${vl.map(x=>btn(esc(x.venue),esc(vnm(x.venue)),x.pending,spVenue===x.venue)).join('')}
+          </div>`;
+      }else vbox.innerHTML='';
+    }
     const c=data.counts||{};
     const cntNote=data.can_audit?`<div style="display:flex;gap:7px;margin-bottom:11px;flex-wrap:wrap">
       <div style="flex:1;min-width:76px;background:#f6efd9;border-radius:10px;padding:7px 9px;text-align:center">
@@ -1675,7 +1692,7 @@ async function slipReport(from,to,all,showVoid,review){
         <b style="font-size:19px;color:var(--danger)">${c.loss||0}</b><div style="font-size:11px;color:var(--muted)">เสียหาย ${baht(c.loss_amt||0)}</div></div>
     </div>`:'';
     $('spBody').innerHTML=cntNote+filterNote+scopeNote+staff+
-      `<div id="spSum"></div><div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
+      `<div id="spSum"></div><div id="spVenues"></div><div id="spDup"></div><div id="spGap"></div><div class="sec-h">รายการ (${rows.length})</div>`+vnote+list;
     canAuditSlip=!!data.can_audit;
     /* สิทธิ์ตรวจเพิ่งรู้ตอนนี้ (ตอนวาดจอยังไม่รู้) ต้องวาดใหม่ ไม่งั้นปุ่มของคนตรวจจะไม่โผล่จนกว่าจะปิดแล้วเปิดใหม่ */
     if(canAuditSlip!==wasAudit){ slipReport(f,e,all,showVoid,review); return; }
