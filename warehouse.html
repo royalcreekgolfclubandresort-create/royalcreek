@@ -445,7 +445,7 @@ function openRecv(id){
       const qo=Number(l.qty_ordered),qr=Number(l.qty_received);
       return `<div class="pline" data-line="${l.line_id}" data-pack="${u}"><div class="nm">${esc(pName(l.product_id))}<small style="color:var(--muted);display:block"><b style="color:var(--danger)">ค้าง ${rnd(remain/u)} ${esc(pk.name)}</b> (${remain} หน่วย) จากสั่ง ${rnd(qo/u)} · ตกลง ${baht(Number(l.est_cost)*u)}/${esc(pk.name)}<span class="lu" style="display:block"></span></small></div>
       <input class="qin rGood" type="number" inputmode="decimal" value="${rnd(remain/u)}" title="รับจริง (${esc(pk.name)})" style="width:54px" oninput="recvCalc()">
-      <input class="qin rFree" type="number" inputmode="decimal" value="0" title="ของแถม (${esc(pk.name)})" style="width:46px" oninput="recvCalc()">
+      <input class="qin rFree" type="number" inputmode="numeric" value="0" title="ของแถม (หน่วยย่อย เช่น ขวด/กระป๋อง)" style="width:46px" oninput="recvCalc()">
       <input class="qin rDmg" type="number" inputmode="numeric" value="0" title="ชำรุด (หน่วย)" style="width:46px" oninput="recvCalc()">
       <input class="qin rCost" type="number" inputmode="decimal" value="${rnd(Number(l.est_cost)*u)}" title="ราคา/${esc(pk.name)}" style="width:66px" oninput="recvCalc()"></div>`;}
     return `<div class="pline" data-line="${l.line_id}"><div class="nm">${esc(pName(l.product_id))}<small style="color:var(--muted);display:block"><b style="color:var(--danger)">ค้าง ${remain}</b> หน่วย จากสั่ง ${l.qty_ordered} · ตกลง ${baht(l.est_cost)}/หน่วย · <a href="#" style="color:var(--green-2)" onclick="setPack(${l.product_id});return false">📦 ตั้งหน่วยใหญ่</a></small></div>
@@ -457,7 +457,7 @@ function openRecv(id){
     <h3 style="margin:0 0 4px">📦 ตรวจรับ ${esc(o.po_number)} <button class="mini" style="float:right" onclick="printOrder(${o.id})">🖨️</button></h3>
     <p style="font-size:12px;color:var(--muted);margin:0 0 8px">${esc(o.supplier||'ไม่ระบุซัพ')} · นับของจริงแล้วใส่ตัวเลข — <b>เฉพาะของดีเท่านั้นที่เข้าสต๊อก</b></p>
     ${done.length?`<div class="sec-h" style="margin:2px 0 4px">⏳ ยังไม่รับ (${pend.length})</div>`:''}
-    ${pend.length?`<div class="pline" style="font-size:11.5px;color:var(--muted);padding-bottom:2px"><div class="nm">สินค้า</div><span style="width:54px;text-align:center">รับจริง</span><span style="width:46px;text-align:center">🎁แถม</span><span style="width:46px;text-align:center">ชำรุด</span><span style="width:66px;text-align:center">ราคา</span></div>`:''}
+    ${pend.length?`<div class="pline" style="font-size:11.5px;color:var(--muted);padding-bottom:2px"><div class="nm">สินค้า</div><span style="width:54px;text-align:center">รับจริง</span><span style="width:46px;text-align:center">🎁แถม<br><span style="font-size:9.5px">(ชิ้น)</span></span><span style="width:46px;text-align:center">ชำรุด</span><span style="width:66px;text-align:center">ราคา</span></div>`:''}
     ${rows||'<div class="empty">ไม่มีรายการค้างรับ</div>'}
     ${doneRows}
     <div class="f" style="margin-top:10px"><label>📸 รูปบิล/ใบส่งของ</label><input type="file" id="rcPhoto" accept="image/*" capture="environment"></div>
@@ -484,7 +484,7 @@ function recvCalc(){
     const pk=Number(el.dataset.pack)||1;
     const g=(Number(el.querySelector('.rGood').value)||0)*pk;
     const fEl=el.querySelector('.rFree');
-    const f=(fEl?(Number(fEl.value)||0):0)*pk;
+    const f=(fEl?(Number(fEl.value)||0):0);
     const c=(Number(el.querySelector('.rCost').value)||0)/pk;
     sum+=g*c;
     const lu=el.querySelector('.lu');
@@ -501,7 +501,7 @@ async function submitRecv(id){
     const fEl=el.querySelector('.rFree');return {
     line_id:Number(el.dataset.line),
     qty_good:rnd((Number(el.querySelector('.rGood').value)||0)*pk),
-    qty_free:rnd(((fEl?Number(fEl.value):0)||0)*pk),
+    qty_free:rnd((fEl?Number(fEl.value):0)||0),
     qty_damaged:Number(el.querySelector('.rDmg').value)||0,
     cost:(Number(el.querySelector('.rCost').value)||0)/pk
   };}).filter(l=>l.qty_good>0||l.qty_damaged>0||l.qty_free>0);
@@ -960,7 +960,20 @@ async function doWhSet(pid){
   if(error){toast(error.message||'ไม่สำเร็จ');return;}
   document.getElementById('adjOv').remove();toast('ตั้งค่าแล้ว ✓');await reloadProds();renderStk();
 }
+async function editPrice(pid,code,label,cur){
+  const hint=code?'\n(ใส่ 0 = ล้างราคาเฉพาะสาขา กลับไปใช้ราคากลาง)':'';
+  const v=prompt('ราคาขายใหม่ — '+label+'\nปัจจุบัน: '+cur+hint,cur);
+  if(v===null)return;const np=Number(v);
+  if(!(np>=0)){alert('ราคาไม่ถูกต้อง');return;}
+  const {data,error}=await sb.rpc('core_wh_set_price',{p_emp:me.id,p_product:pid,p_venue:code||'',p_price:np});
+  if(error){alert('แก้ราคาไม่สำเร็จ:\n'+(error.message||''));return;}
+  toast('แก้ราคาแล้ว ✓ '+(data&&data.new===null?'(กลับใช้ราคากลาง)':baht(np)));
+  await reloadProds();
+  if(traceCtx)trace(traceCtx.pid,traceCtx.name);
+}
+let traceCtx=null;
 async function trace(pid,name){
+  traceCtx={pid,name};
   const [{data},pv]=await Promise.all([
     sb.rpc('core_wh_product_trace',{p_emp:me.id,p_product:pid}),
     sb.rpc('core_wh_product_venues',{p_emp:me.id,p_product:pid})
@@ -972,13 +985,13 @@ async function trace(pid,name){
   const vens2=(info.venues||[]).filter(x=>x.code!=='WH');
   const vRows=vens2.map(x=>{const pr=Number(x.price)||0;
     const margin=(lc>0&&pr>0)?(pr-lc):null;
-    return `<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:13px"><span>${esc(x.name||x.code)}${x.is_override?' <span style="font-size:10.5px;color:#8a6d1f">(ราคาเฉพาะสาขา)</span>':''}${Number(x.student)>0?' · นร. '+baht(x.student):''}</span><span><b>${baht(pr)}</b>${margin!==null?` <span style="color:${margin>0?'var(--ok)':'var(--danger)'};font-size:11.5px">กำไร ${baht(margin)} (${pr>0?Math.round(margin/pr*100):0}%)</span>`:''}</span></div>`;}).join('');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0;font-size:13px"><span>${esc(x.name||x.code)}${x.is_override?' <span style="font-size:10.5px;color:#8a6d1f">(ราคาเฉพาะสาขา)</span>':''}${Number(x.student)>0?' · นร. '+baht(x.student):''}</span><span><b>${baht(pr)}</b>${margin!==null?` <span style="color:${margin>0?'var(--ok)':'var(--danger)'};font-size:11.5px">กำไร ${baht(margin)} (${pr>0?Math.round(margin/pr*100):0}%)</span>`:''}${toolCan.price_edit?` <button class="mini" style="padding:3px 8px" onclick="editPrice(${pid},'${x.code}','${esc(x.name||x.code)}',${pr})">✏️</button>`:''}</span></div>`;}).join('');
   const infoCard=`<div class="card" style="margin-top:10px">
     <div style="font-size:15px;font-weight:700">${esc(name)}</div>
     <div style="font-size:13px;color:var(--muted);margin-top:4px">
       📦 หน่วย: ${pk?('1 '+esc(pk.name)+' = '+pk.qty+' หน่วย'):'หน่วยย่อยอย่างเดียว'} <a href="#" style="color:var(--green-2)" onclick="setPack(${pid});return false">แก้ขนาด</a><br>
       💵 ทุนล่าสุด: ${lc>0?baht(lc)+'/หน่วย'+(pk?' ('+baht(lc*pk.qty)+'/'+esc(pk.name)+')':''):'ยังไม่มีข้อมูลซื้อ'}
-      ${Number(info.base_price)>0?' · ราคาขายกลาง '+baht(info.base_price):''}
+      ${Number(info.base_price)>0?' · ราคาขายกลาง '+baht(info.base_price):''}${toolCan.price_edit?` <button class="mini" style="padding:3px 8px" onclick="editPrice(${pid},'','ราคากลาง (ทุกสาขาที่ไม่ตั้งเฉพาะ)',${Number(info.base_price)||0})">✏️</button>`:''}
     </div>
     ${vRows?`<div class="sec-h" style="margin:10px 0 3px;font-size:13px">🏪 ราคาขาย/สต๊อกต่อสาขา — กำไรคิดจากทุนล่าสุด</div>${vRows}`:'<div style="font-size:12.5px;color:var(--muted);margin-top:6px">ยังไม่ถูกวางขายที่สาขาไหน</div>'}
   </div>`;
