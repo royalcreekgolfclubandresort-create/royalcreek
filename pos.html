@@ -214,6 +214,9 @@ function todayISO(d){const t=d?new Date(d):new Date();
   return new Date(t.getTime()-t.getTimezoneOffset()*60000).toISOString().slice(0,10);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function baht(n){return '฿'+Number(n||0).toLocaleString('th-TH');}
+/* ชื่อวิธีจ่าย — ระบบรับ 4 แบบ ห้ามเหมาว่าอะไรที่ไม่ใช่โอน = เงินสด */
+const PAYNAME={cash:'เงินสด',transfer:'โอน',usd:'💵 USD',krw:'₩ KRW'};
+function payName(p){return PAYNAME[p]||(p?('❓ '+p):'ไม่ระบุ');}
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800);}
 function catName(id){const c=cats.find(x=>x.id===id);return c?c.name_th:'ไม่มีหมวด';}
 function catColor(id){const c=cats.find(x=>x.id===id);return c&&c.color?c.color:'#9AA0A6';}
@@ -816,7 +819,7 @@ function showReceipt(r){
     <div class="rr"><span>วันเวลา</span><span>${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></div>
     <div class="rr"><span>พนักงาน</span><span>${esc(r.by||me.name)}</span></div><div class="dash"></div>${items}<div class="dash"></div>
     <div class="tt"><span>รวมทั้งหมด</span><span>${baht(r.total)}</span></div>
-    <div class="rr"><span>ชำระ</span><span>${r.pay==='transfer'?'โอน':'เงินสด'}</span></div>
+    <div class="rr"><span>ชำระ</span><span>${payName(r.pay)}</span></div>
     <div class="ty">ขอบคุณที่ใช้บริการ 🙏</div></div>
     <div class="hidefromprint"><button class="save" onclick="printReceipt()">พิมพ์ใบเสร็จ</button><button class="ghost" onclick="closeModal()">เสร็จสิ้น</button></div>
   </div></div>`;
@@ -1112,10 +1115,20 @@ async function loadReport(){
   const s=data.summary||{count:0,total:0,cash:0,transfer:0};
   const top=(data.top||[]).map((t,i)=>`<div class="row"><span style="color:var(--muted);width:20px">${i+1}</span><div class="nm"><b>${esc(t.name)}</b></div><span style="color:var(--muted)">${t.qty} ชิ้น</span><b style="color:var(--green-2)">${baht(t.total)}</b></div>`).join('')||'<div class="empty">ไม่มีข้อมูล</div>';
   const bills=(data.bills||[]).map(b=>{const dt=new Date(b.at);
-    return `<div class="row"><div class="nm" onclick='reprint(${JSON.stringify(b)})' style="cursor:pointer"><b>${esc(b.bill_no)}</b><small>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(b.by||'')} · ${b.pay==='transfer'?'โอน':'เงินสด'}</small></div><b>${baht(b.total)}</b>
+    return `<div class="row"><div class="nm" onclick='reprint(${JSON.stringify(b)})' style="cursor:pointer"><b>${esc(b.bill_no)}</b><small>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(b.by||'')} · ${payName(b.pay)}</small></div><b>${baht(b.total)}</b>
       <button class="mini" onclick='reprint(${JSON.stringify(b)})'>พิมพ์</button>
       ${canVoidBill?`<button class="mini" onclick='fixDisc("${b.id}","${esc(b.bill_no)}",${b.total},${b.discount||0})'>🏷</button><button class="mini" style="color:var(--danger)" onclick='voidBill("${b.id}","${esc(b.bill_no)}")'>ยกเลิก</button>`:''}</div>`;}).join('')||'<div class="empty">ยังไม่มีบิล</div>';
-  $('repBody').innerHTML=`<div class="stat"><div><b>${s.count}</b><span>บิล</span></div><div><b>${baht(s.gross||s.total)}</b><span>ก่อนลด</span></div><div><b>${baht(s.discount||0)}</b><span>🏷 ส่วนลด</span></div><div><b>${baht(s.total)}</b><span>สุทธิ</span></div><div><b>${baht(s.cash)}</b><span>เงินสด</span></div><div><b>${baht(s.transfer)}</b><span>โอน</span></div></div>
+  /* รวมยอดแยกวิธีจ่ายจากรายการบิลจริง ไม่พึ่งค่าสรุปที่อาจนับไม่ครบ */
+  const byPay={};
+  (data.bills||[]).forEach(b=>{const k=b.pay||'unknown';byPay[k]=(byPay[k]||0)+Number(b.total||0);});
+  const paySum=Object.keys(byPay).reduce((a,k)=>a+byPay[k],0);
+  const diff=Math.round(((Number(s.total)||0)-paySum)*100)/100;
+  const payTiles=Object.keys(byPay).sort((a,b)=>byPay[b]-byPay[a])
+    .map(k=>`<div><b>${baht(byPay[k])}</b><span>${payName(k)}</span></div>`).join('');
+  $('repBody').innerHTML=`<div class="stat"><div><b>${s.count}</b><span>บิล</span></div><div><b>${baht(s.gross||s.total)}</b><span>ก่อนลด</span></div><div><b>${baht(s.discount||0)}</b><span>🏷 ส่วนลด</span></div><div><b>${baht(s.total)}</b><span>สุทธิ</span></div>${payTiles}</div>
+    ${Math.abs(diff)>=0.01?`<div style="background:#faece9;border:1.5px solid var(--danger);border-radius:12px;padding:10px 12px;font-size:12.5px;color:var(--danger);margin-bottom:11px">
+      <b>⚠️ ยอดไม่ลงตัว ${baht(Math.abs(diff))}</b>
+      <div style="color:var(--ink);margin-top:3px">ยอดสุทธิ ${baht(s.total)} · รวมทุกวิธีจ่าย ${baht(paySum)}<br>อาจมีบิลที่วิธีจ่ายไม่ถูกบันทึก — แจ้งเจ้าของให้ตรวจ</div></div>`:''}
     <div class="sec-h">สินค้าขายดี</div>${top}<div class="sec-h">บิลทั้งหมด (แตะเพื่อพิมพ์ซ้ำ)</div>${bills}`;
 }
 /* ===== รายงานละเอียดอ่อน — บิลที่ถูกยกเลิก ===== */
@@ -1157,7 +1170,7 @@ async function voidReport(from,to){
       return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:9px">
         <div style="display:flex;align-items:baseline;gap:8px">
           <b style="text-decoration:line-through">${esc(r.bill_no||'—')}</b>
-          <span class="pill ${r.pay==='transfer'?'pending':''}">${r.pay==='transfer'?'โอน':'เงินสด'}</span>
+          <span class="pill ${r.pay==='transfer'?'pending':''}">${payName(r.pay)}</span>
           <b style="margin-left:auto">${baht(r.total)}</b></div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">
           ขายโดย ${esc(r.sold_by||'—')}${st?' · '+st.toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''} · ${esc(r.venue||'')}</div>
@@ -1553,7 +1566,7 @@ async function slipReport(from,to,all,showVoid,review,venueSel){
   const f=from||todayISO(), e=to||todayISO();   /* ค่าเริ่มต้น = วันนี้ถึงวันนี้ */
   const wasAudit=canAuditSlip;
   $('modal').innerHTML=`<div class="ov"><div class="sheet"><h3>🧾 ${canAuditSlip?'ตรวจสลิปโอน':'สลิปโอนซุ้มเรา'}</h3>
-    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 25 · จัดหน้าใหม่ ✓</div>
+    <div style="background:#0d2b1f;color:#c9a24b;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;margin:-8px 0 12px;display:inline-block">ระบบตรวจสลิป เวอร์ชัน 26 · แยกวิธีจ่ายครบ ✓</div>
     ${me.isOwner?`<button class="mini" style="width:100%;height:38px;font-size:12.5px;margin-bottom:11px" onclick="var b=document.getElementById('ownBox');b.style.display=(b.style.display==='none'?'':'none')">⚙️ ตั้งค่าระบบ</button>
     <div id="ownBox" style="display:none;border:2px solid var(--green-2);border-radius:13px;padding:11px 13px;margin-bottom:13px">
       <b style="font-size:14px">โหมดการใช้งาน</b>
@@ -1897,7 +1910,7 @@ async function printSalesReport(){
   if(error||!data){toast('โหลดไม่สำเร็จ');return;}
   const s=data.summary||{};let body='';
   (data.bills||[]).forEach((b,i)=>{const dt=new Date(b.at);
-    body+=`<tr class="billhd"><td class="c">${i+1}</td><td>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</td><td>บิล ${esc(b.bill_no)} · ${esc(b.by||'')}</td><td class="c">${b.pay==='transfer'?'โอน':'เงินสด'}</td><td class="r">${baht(b.total)}</td></tr>`;
+    body+=`<tr class="billhd"><td class="c">${i+1}</td><td>${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</td><td>บิล ${esc(b.bill_no)} · ${esc(b.by||'')}</td><td class="c">${payName(b.pay)}</td><td class="r">${baht(b.total)}</td></tr>`;
     (b.items||[]).forEach(it=>{body+=`<tr><td></td><td></td><td>— ${esc(it.name)}</td><td class="c">${it.qty} × ${baht(it.unit)}</td><td class="r">${baht(it.total)}</td></tr>`;});
   });
   $('printArea').innerHTML=`<h2>${esc(venue.name_th)}</h2><div class="sub">รายงานยอดขาย ${d} · พิมพ์ ${new Date().toLocaleString('th-TH')}</div>
