@@ -542,6 +542,15 @@ main{max-width:900px;margin:0 auto;padding:14px}
   </div>
 </section>
 
+<!-- ===== caddy detail modal ===== -->
+<div class="rmodal" id="cdModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="rbox pfbox">
+    <div class="rt" id="cdTitle">-</div>
+    <div id="cdBody" style="font-size:13px;line-height:1.7"></div>
+    <button class="ropt cancel" style="margin-top:12px" onclick="document.getElementById('cdModal').classList.remove('show')">ปิด</button>
+  </div>
+</div>
+
 <!-- ===== profile modal ===== -->
 <div class="rmodal" id="profModal">
   <div class="rbox pfbox">
@@ -1996,13 +2005,74 @@ async function sumLoadMonth(){
     const rows = nos.map(no=>{
       const a=agg[no]; tw+=a.w; to+=a.o; tl+=a.l; tp+=a.p;
       const come=a.w+a.o+a.l+a.p;
-      return `<tr><td>${no}</td><td>${come}</td><td>${a.w}</td><td>${a.o}</td><td>${a.l}</td><td>${a.p}</td></tr>`;
+      return `<tr onclick="caddyDetail('${no}')" style="cursor:pointer"><td>${no}</td><td>${come}</td><td>${a.w}</td><td>${a.o}</td><td>${a.l}</td><td>${a.p}</td></tr>`;
     }).join('');
     document.getElementById('sumMonthTbl').innerHTML =
       `<table class="mtbl"><tr><th>เบอร์</th><th>มา (วัน)</th><th>วิน</th><th>จอง</th><th>สาย</th><th>พาส</th></tr>${rows}
-       <tr><td><b>รวม</b></td><td><b>${tw+to+tl+tp}</b></td><td><b>${tw}</b></td><td><b>${to}</b></td><td><b>${tl}</b></td><td><b>${tp}</b></td></tr></table>`;
+       <tr><td><b>รวม</b></td><td><b>${tw+to+tl+tp}</b></td><td><b>${tw}</b></td><td><b>${to}</b></td><td><b>${tl}</b></td><td><b>${tp}</b></td></tr></table>
+       <p class="hint" style="margin-top:6px">แตะแถวเบอร์ไหน = รายงานรายคนของเดือนนี้ (มา/สาย/พาส/ไม่มา/ลา รายวัน)</p>`;
     lvHistLoad(first, next);
   }catch(e){ toast('โหลดสรุปเดือนไม่ได้: '+e.message, true); }
+}
+async function caddyDetail(no){
+  const m = document.getElementById('sumMonthIn').value; if(!m||!keyOk) return;
+  const first = m+'-01';
+  const nd = new Date(+m.slice(0,4), +m.slice(5,7), 1);
+  const next = nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-01';
+  const info = ROSTER_INFO[no]||{};
+  try{
+    const q = api => fetch(api,{headers:H}).then(r=>r.json()).then(a=>Array.isArray(a)?a:[]);
+    const [cis, lvsA, pls, rqsA] = await Promise.all([
+      q(`${CI_API}?caddy_number=eq.${no}&work_date=gte.${first}&work_date=lt.${next}&select=work_date,status,extra`),
+      q(`${LV_API}?caddy_number=eq.${no}&work_date=gte.${first}&work_date=lt.${next}&status=eq.approved&select=work_date`),
+      q(`${PLAN_API}?caddy_number=eq.${no}&work_date=gte.${first}&work_date=lt.${next}&select=work_date,shift,tee_time`),
+      q(`${REQ_API}?caddy_number=eq.${no}&work_date=gte.${first}&work_date=lt.${next}&select=work_date`)
+    ]);
+    const ciM={}; cis.forEach(r=>{ ciM[r.work_date]=r; });
+    const lvM=new Set(lvsA.map(r=>r.work_date));
+    const plM={}; pls.forEach(r=>{ plM[r.work_date]=r; });
+    const rqM=new Set(rqsA.map(r=>r.work_date));
+    const cat = {win:[], ok:[], late:[], pass:[], miss:[], leave:[]};
+    let cur = new Date(first+'T12:00:00');
+    const stop = new Date(next+'T12:00:00'), tod = new Date(today+'T12:00:00');
+    while(cur < stop && cur <= tod){
+      const ds = cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+      const dw = cur.getDay();
+      const ci = ciM[ds];
+      const pl = plM[ds];
+      if(ci){
+        let st = ci.status;
+        if(st==='win6') st='win'; else if(st==='win8') st='pass';
+        (cat[st]||cat.win).push(ds);
+      } else if(lvM.has(ds) || (pl&&pl.shift===4)){
+        cat.leave.push(ds);
+      } else {
+        const susp = info.suspended_until && info.suspended_until >= ds;
+        const expected = (!susp && ruleOk(info.day_rule||'all', dw)) || rqM.has(ds) || (pl&&pl.shift===3);
+        if(expected) cat.miss.push(ds);
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+    const dl = a => a.map(d=>fmtD(d)).join(', ')||'—';
+    const came = cat.win.length+cat.ok.length+cat.late.length+cat.pass.length;
+    document.getElementById('cdTitle').textContent =
+      `เบอร์ ${no}${info.nickname?' ('+info.nickname+')':''} · ${fmtD(first)} - ${fmtD(today<next?today:next)}`;
+    document.getElementById('cdBody').innerHTML =
+      `<div class="sumchips" style="margin-bottom:10px">
+        <span class="schip g">มา ${came}</span>
+        <span class="schip" style="background:var(--amber-soft);color:#7A5407">สาย ${cat.late.length}</span>
+        <span class="schip r">พาส ${cat.pass.length}</span>
+        <span class="schip r">ไม่มา ${cat.miss.length}</span>
+        <span class="schip m">ลา ${cat.leave.length}</span>
+      </div>
+      <div><b style="color:var(--pine)">✅ วิน (${cat.win.length}):</b> ${dl(cat.win)}</div>
+      <div><b style="color:var(--pine)">🔒 จอง มาแล้ว (${cat.ok.length}):</b> ${dl(cat.ok)}</div>
+      <div><b style="color:#7A5407">⏰ สาย (${cat.late.length}):</b> ${dl(cat.late)}</div>
+      <div><b style="color:var(--red)">🚫 พาส (${cat.pass.length}):</b> ${dl(cat.pass)}</div>
+      <div><b style="color:var(--red)">❌ ไม่มา (${cat.miss.length}):</b> ${dl(cat.miss)}</div>
+      <div><b style="color:#4A5878">📝 ลา (${cat.leave.length}):</b> ${dl(cat.leave)}</div>`;
+    document.getElementById('cdModal').classList.add('show');
+  }catch(e){ toast('โหลดรายคนไม่ได้: '+e.message, true); }
 }
 async function lvHistLoad(first, next){
   const box=document.getElementById('sumLeave'); if(!box) return;
