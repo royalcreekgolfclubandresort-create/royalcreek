@@ -242,6 +242,7 @@ main{max-width:900px;margin:0 auto;padding:14px}
 .mb.snap{background:var(--green);color:#fff}
 .mb.close{background:rgba(255,255,255,.15);color:#fff}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -513,6 +514,7 @@ main{max-width:900px;margin:0 auto;padding:14px}
       <label>เลือกเดือน<input type="month" id="sumMonthIn" onchange="sumLoadMonth()"></label>
     </div>
     <div id="sumMonthTbl"></div>
+    <button class="btn btn-ghost" style="margin-top:12px" onclick="exportMonth()">📥 ดาวน์โหลด Excel เดือนนี้</button>
     <div id="sumLeave" style="margin-top:16px"></div>
   </div>
 </section>
@@ -2013,6 +2015,73 @@ async function sumLoadMonth(){
        <p class="hint" style="margin-top:6px">แตะแถวเบอร์ไหน = รายงานรายคนของเดือนนี้ (มา/สาย/พาส/ไม่มา/ลา รายวัน)</p>`;
     lvHistLoad(first, next);
   }catch(e){ toast('โหลดสรุปเดือนไม่ได้: '+e.message, true); }
+}
+async function exportMonth(){
+  if(typeof XLSX === 'undefined'){ toast('ตัวสร้าง Excel ยังไม่โหลด — รีเฟรชหน้าแล้วลองใหม่', true); return; }
+  const m = document.getElementById('sumMonthIn').value; if(!m||!keyOk) return;
+  toast('กำลังรวบรวมข้อมูล…');
+  const first = m+'-01';
+  const nd = new Date(+m.slice(0,4), +m.slice(5,7), 1);
+  const next = nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-01';
+  try{
+    const q = api => fetch(api,{headers:H}).then(r=>r.json()).then(a=>Array.isArray(a)?a:[]);
+    const [cis, lvsA, pls, rqsA] = await Promise.all([
+      q(`${CI_API}?work_date=gte.${first}&work_date=lt.${next}&select=work_date,caddy_number,status,extra,checkin_time,checkout_time,early_out,early_reason&limit=10000`),
+      q(`${LV_API}?work_date=gte.${first}&work_date=lt.${next}&status=eq.approved&select=work_date,caddy_number&limit=10000`),
+      q(`${PLAN_API}?work_date=gte.${first}&work_date=lt.${next}&select=work_date,caddy_number,shift,tee_time&limit=10000`),
+      q(`${REQ_API}?work_date=gte.${first}&work_date=lt.${next}&select=work_date,caddy_number&limit=10000`)
+    ]);
+    const ciM={}; cis.forEach(r=>{ (ciM[r.caddy_number]=ciM[r.caddy_number]||{})[r.work_date]=r; });
+    const lvS=new Set(lvsA.map(r=>r.caddy_number+'|'+r.work_date));
+    const plM={}; pls.forEach(r=>{ (plM[r.caddy_number]=plM[r.caddy_number]||{})[r.work_date]=r; });
+    const rqS=new Set(rqsA.map(r=>r.caddy_number+'|'+r.work_date));
+    const bhm = ts => ts ? hm(new Date(new Date(ts).toLocaleString('en-US',{timeZone:'Asia/Bangkok'}))) : '';
+    const STL = {win:'วิน', ok:'จอง', late:'สาย', pass:'พาส'};
+    const sum = [['เบอร์','ชื่อเล่น','มา','วิน','จอง','สาย','พาส','ไม่มา','ลา']];
+    const log = [['วันที่','เบอร์','ชื่อเล่น','สถานะ','เวลาเข้า','เวลาออก','ออกก่อนเวลา','เหตุผลออกก่อน','ขอเข้าทำงาน']];
+    const roster = (ROSTER_ALL.length?ROSTER_ALL:ROSTER);
+    roster.forEach(([no])=>{
+      const info = ROSTER_INFO[no]||{};
+      const c = {win:0, ok:0, late:0, pass:0, miss:0, leave:0};
+      let cur = new Date(first+'T12:00:00');
+      const stop = new Date(next+'T12:00:00'), tod = new Date(today+'T12:00:00');
+      while(cur < stop && cur <= tod){
+        const ds = cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+        const dw = cur.getDay();
+        const ci = (ciM[no]||{})[ds];
+        const pl = (plM[no]||{})[ds];
+        if(ci){
+          let st = ci.status;
+          if(st==='win6') st='win'; else if(st==='win8') st='pass';
+          if(!(st in c)) st='win';
+          c[st]++;
+          log.push([ds, no, info.nickname||'', STL[st]||st, bhm(ci.checkin_time), bhm(ci.checkout_time),
+                    ci.early_out?'ใช่':'', ci.early_reason||'', ci.extra?'ใช่':'']);
+        } else if(lvS.has(no+'|'+ds) || (pl&&pl.shift===4)){
+          c.leave++;
+          log.push([ds, no, info.nickname||'', 'ลา', '', '', '', '', '']);
+        } else {
+          const susp = info.suspended_until && info.suspended_until >= ds;
+          const expected = (!susp && ruleOk(info.day_rule||'all', dw)) || rqS.has(no+'|'+ds) || (pl&&pl.shift===3);
+          if(expected){
+            c.miss++;
+            log.push([ds, no, info.nickname||'', 'ไม่มา', '', '', '', '', '']);
+          }
+        }
+        cur.setDate(cur.getDate()+1);
+      }
+      sum.push([no, info.nickname||'', c.win+c.ok+c.late+c.pass, c.win, c.ok, c.late, c.pass, c.miss, c.leave]);
+    });
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(sum);
+    ws1['!cols'] = [{wch:6},{wch:12},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:6},{wch:5}];
+    const ws2 = XLSX.utils.aoa_to_sheet(log);
+    ws2['!cols'] = [{wch:11},{wch:6},{wch:12},{wch:7},{wch:8},{wch:8},{wch:10},{wch:28},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws1, 'สรุปรายคน');
+    XLSX.utils.book_append_sheet(wb, ws2, 'รายวัน');
+    XLSX.writeFile(wb, `caddy-report-${m}.xlsx`);
+    toast('📥 ดาวน์โหลดแล้ว: caddy-report-'+m+'.xlsx');
+  }catch(e){ toast('สร้างไฟล์ไม่สำเร็จ: '+e.message, true); }
 }
 async function caddyDetail(no){
   const m = document.getElementById('sumMonthIn').value; if(!m||!keyOk) return;
