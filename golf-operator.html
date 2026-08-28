@@ -2037,48 +2037,58 @@ async function exportMonth(){
     const rqS=new Set(rqsA.map(r=>r.caddy_number+'|'+r.work_date));
     const bhm = ts => ts ? hm(new Date(new Date(ts).toLocaleString('en-US',{timeZone:'Asia/Bangkok'}))) : '';
     const STL = {win:'วิน', ok:'จอง', late:'สาย', pass:'พาส'};
-    const sum = [['เบอร์','ชื่อเล่น','มา','วิน','จอง','สาย','พาส','ไม่มา','ลา']];
-    const log = [['วันที่','เบอร์','ชื่อเล่น','สถานะ','เวลาเข้า','เวลาออก','ออกก่อนเวลา','เหตุผลออกก่อน','ขอเข้าทำงาน']];
+    const wb = XLSX.utils.book_new();
+    const sum = [['เบอร์','ชื่อเล่น','วันต้องทำงาน','ลา','ต้องมา (หักลา)','มาจริง','วิน','จอง','สาย','พาส','ไม่มา']];
     const roster = (ROSTER_ALL.length?ROSTER_ALL:ROSTER);
+    const sheets = [];
     roster.forEach(([no])=>{
       const info = ROSTER_INFO[no]||{};
-      const c = {win:0, ok:0, late:0, pass:0, miss:0, leave:0};
+      const c = {win:0, ok:0, late:0, pass:0, miss:0, leave:0, sched:0};
+      const rows = [['วันที่','วัน','สถานะ','เข้า','ออก','หมายเหตุ']];
       let cur = new Date(first+'T12:00:00');
-      const stop = new Date(next+'T12:00:00'), tod = new Date(today+'T12:00:00');
-      while(cur < stop && cur <= tod){
+      const stop = new Date(next+'T12:00:00');
+      while(cur < stop){
         const ds = cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
         const dw = cur.getDay();
+        const dayLb = DAY_TH[dw];
+        if(ds > today){ rows.push([ds, dayLb, '', '', '', '']); cur.setDate(cur.getDate()+1); continue; }
         const ci = (ciM[no]||{})[ds];
         const pl = (plM[no]||{})[ds];
-        if(ci){
-          let st = ci.status;
-          if(st==='win6') st='win'; else if(st==='win8') st='pass';
-          if(!(st in c)) st='win';
-          c[st]++;
-          log.push([ds, no, info.nickname||'', STL[st]||st, bhm(ci.checkin_time), bhm(ci.checkout_time),
-                    ci.early_out?'ใช่':'', ci.early_reason||'', ci.extra?'ใช่':'']);
-        } else if(lvS.has(no+'|'+ds) || (pl&&pl.shift===4)){
-          c.leave++;
-          log.push([ds, no, info.nickname||'', 'ลา', '', '', '', '', '']);
-        } else {
-          const susp = info.suspended_until && info.suspended_until >= ds;
-          const expected = (!susp && ruleOk(info.day_rule||'all', dw)) || rqS.has(no+'|'+ds) || (pl&&pl.shift===3);
-          if(expected){
-            c.miss++;
-            log.push([ds, no, info.nickname||'', 'ไม่มา', '', '', '', '', '']);
-          }
+        const susp = info.suspended_until && info.suspended_until >= ds;
+        const onLeave = lvS.has(no+'|'+ds) || (pl&&pl.shift===4);
+        const sched = !susp && ((ruleOk(info.day_rule||'all', dw)) || rqS.has(no+'|'+ds) || (pl&&pl.shift===3));
+        if(sched) c.sched++;
+        const notes = [];
+        if(rqS.has(no+'|'+ds)) notes.push('ขอเข้า');
+        if(pl&&pl.shift===3) notes.push('จอง '+(pl.tee_time||''));
+        let st='', tin='', tout='';
+        if(susp){ st='พักเบอร์'; }
+        else if(ci){
+          let x = ci.status;
+          if(x==='win6') x='win'; else if(x==='win8') x='pass';
+          if(!(x in c)) x='win';
+          c[x]++;
+          st = STL[x]||x; tin = bhm(ci.checkin_time); tout = bhm(ci.checkout_time);
+          if(ci.early_out) notes.push('ออกก่อนเวลา'+(ci.early_reason?': '+ci.early_reason:''));
         }
+        else if(onLeave){ st='ลา'; c.leave++; }
+        else if(sched){ st='ไม่มา'; c.miss++; }
+        else { st='วันหยุด'; }
+        rows.push([ds, dayLb, st, tin, tout, notes.join(' · ')]);
         cur.setDate(cur.getDate()+1);
       }
-      sum.push([no, info.nickname||'', c.win+c.ok+c.late+c.pass, c.win, c.ok, c.late, c.pass, c.miss, c.leave]);
+      const came = c.win+c.ok+c.late+c.pass;
+      sum.push([no, info.nickname||'', c.sched, c.leave, c.sched-c.leave, came, c.win, c.ok, c.late, c.pass, c.miss]);
+      sheets.push([no, rows]);
     });
-    const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.aoa_to_sheet(sum);
-    ws1['!cols'] = [{wch:6},{wch:12},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:6},{wch:5}];
-    const ws2 = XLSX.utils.aoa_to_sheet(log);
-    ws2['!cols'] = [{wch:11},{wch:6},{wch:12},{wch:7},{wch:8},{wch:8},{wch:10},{wch:28},{wch:10}];
-    XLSX.utils.book_append_sheet(wb, ws1, 'สรุปรายคน');
-    XLSX.utils.book_append_sheet(wb, ws2, 'รายวัน');
+    ws1['!cols'] = [{wch:6},{wch:12},{wch:12},{wch:5},{wch:13},{wch:8},{wch:5},{wch:5},{wch:5},{wch:5},{wch:6}];
+    XLSX.utils.book_append_sheet(wb, ws1, 'สรุป');
+    sheets.forEach(([no, rows])=>{
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:7},{wch:7},{wch:30}];
+      XLSX.utils.book_append_sheet(wb, ws, 'เบอร์ '+no);
+    });
     XLSX.writeFile(wb, `caddy-report-${m}.xlsx`);
     toast('📥 ดาวน์โหลดแล้ว: caddy-report-'+m+'.xlsx');
   }catch(e){ toast('สร้างไฟล์ไม่สำเร็จ: '+e.message, true); }
