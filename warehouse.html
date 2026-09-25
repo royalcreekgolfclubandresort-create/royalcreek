@@ -184,7 +184,7 @@ async function loadPoHistory(){
 }
 function openPO(p){
   const dt=new Date(p.at);
-  const canDel=(me.isOwner||me.canWH)&&p.status!=='cancelled';
+  const canDel=(me.isOwner||toolCan.item_delete)&&p.status!=='cancelled'&&!String(p.note||'').startsWith('ตรวจรับ #');
   const rows=(p.items||[]).map(it=>`<div class="row"><div class="nm">${esc(it.name)}<small style="color:var(--muted);display:block">${it.qty} × ${baht(it.cost)}</small></div><b>${baht(it.total)}</b>${(toolCan.cost_edit&&it.item_id)?`<button class="mini" style="margin-left:8px" onclick='fixCost("${it.item_id}","${esc(it.name)}",${Number(it.cost)||0})'>🔧</button>`:''}${(canDel&&it.item_id)?`<button class="mini" style="color:var(--danger);margin-left:8px" onclick='delPOItem("${it.item_id}","${esc(it.name)}")'>×</button>`:''}</div>`).join('');
   document.body.insertAdjacentHTML('beforeend',`<div class="ov" id="poOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(20,25,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:30"><div class="lcard" style="max-width:520px;border-radius:20px 20px 0 0;max-height:85vh;overflow:auto">
     <h3 style="margin:0 0 4px">${p.po?esc(p.po):'ใบสั่งซื้อ'} · ${esc(p.supplier||'ไม่ระบุซัพ')}</h3>
@@ -196,9 +196,9 @@ function openPO(p){
     <button class="btn" style="background:none;color:var(--muted);height:42px" onclick="document.getElementById('poOv').remove()">ปิด</button></div></div>`);
 }
 async function delPOItem(id,name){
-  if(!confirm('ลบ "'+name+'" ออกจากใบซื้อ? ระบบถอนของออกจากคลัง+หักยอดใบ'))return;
+  if(!confirm('ลบ "'+name+'" ออกจากใบนี้?\n⚠️ ระบบจะถอนสินค้าออกจากสต๊อก+หักยอดใบทันที'))return;
   const {error}=await sb.rpc('core_wh_po_item_del',{p_emp:me.id,p_item:id});
-  if(error){toast(error.message||'ไม่สำเร็จ');return;}
+  if(error){alert('ลบไม่สำเร็จ:\n'+(error.message||''));return;}
   toast('ลบรายการแล้ว ✓');document.getElementById('poOv')&&document.getElementById('poOv').remove();
   loadPO&&loadPO();loadData&&loadData();}
 async function cancelPO(id,po){
