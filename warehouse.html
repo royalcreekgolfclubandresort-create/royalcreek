@@ -665,6 +665,7 @@ function openRecvDetail(id){
         :`<div style="background:#f6efd9;border:1px solid #e6d29a;border-radius:11px;padding:9px 12px;margin-top:10px;font-size:13px">⏳ ใบนี้มีของขาด — รอเจ้าของตรวจยืนยัน</div>`))
       :''}
     ${(toolCan.cancel&&((o.status==='received'&&ordDiff(o).short>0)||o.status==='cancelled'))?`<button class="btn" style="background:#3a6ea5;margin-top:10px" onclick="reopenOrder(${o.id},'${esc(o.po_number)}','${o.status}')">↪️ เปิดใบกลับมารับต่อ</button>`:''}
+    ${(me.isOwner&&o.status==='received')?`<button class="btn" style="background:#faece9;color:var(--danger);margin-top:8px" onclick="cancelReceivedOrder(${o.id},'${esc(o.po_number)}')">🗑 ยกเลิกทั้งใบ — ถอนของออกสต๊อก (เจ้าของ)</button>`:''}
     <button class="btn" style="margin-top:10px" onclick="printOrder(${o.id})">🖨️ พิมพ์ใบสั่งซื้อ</button>
     <button class="btn" style="background:none;color:var(--muted);height:42px" onclick="document.getElementById('rdOv').remove()">ปิด</button></div></div>`);
 }
@@ -687,6 +688,17 @@ async function reopenOrder(id,po,st){
   const ov=document.getElementById('rdOv');if(ov)ov.remove();
   toast('เปิดใบ '+po+' กลับแล้ว ✓ ไปที่ "รอตรวจรับ" ได้เลย');
   loadRecvData();
+}
+async function cancelReceivedOrder(id,po){
+  const reason=prompt('เหตุผลที่ยกเลิกใบ '+po+'\n(ระบบจะถอนของออกจากสต๊อกทั้งหมดที่รับเข้ามา)');
+  if(reason===null)return;
+  if(!reason.trim()){alert('กรุณาระบุเหตุผล');return;}
+  if(!confirm('ยืนยันยกเลิกใบ '+po+'?\nของที่รับเข้าสต๊อกแล้วทั้งหมดจะถูกถอนออก — ย้อนกลับได้ด้วยปุ่ม "เปิดใบกลับมารับต่อ"'))return;
+  const {data,error}=await sb.rpc('core_wh_po_order_cancel',{p_emp:me.id,p_order:id,p_reason:reason.trim()});
+  if(error){alert('ยกเลิกไม่สำเร็จ:\n'+(error.message||JSON.stringify(error)));return;}
+  const ov=document.getElementById('rdOv');if(ov)ov.remove();
+  toast('ยกเลิกใบ '+po+' แล้ว — ถอนของออกสต๊อกเรียบร้อย');
+  loadRecvData();reloadProds();
 }
 function printOrder(id){
   const o=histOrders.find(x=>x.id===id)||recvOrders.find(x=>x.id===id);if(!o)return;
