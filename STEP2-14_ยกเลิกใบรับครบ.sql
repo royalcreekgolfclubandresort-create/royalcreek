@@ -12,11 +12,10 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 declare
-  v_ord   record;
-  v_wh    uuid;
-  v_line  record;
-  v_qty   numeric;
-  v_after numeric;
+  v_ord      record;
+  v_wh       uuid;
+  v_line     record;
+  v_after    numeric;
   v_is_owner boolean;
 begin
   select * into v_ord from core_wh_po_orders where id = p_order;
@@ -26,7 +25,6 @@ begin
     raise exception 'ใบนี้ยกเลิกไปแล้ว';
   end if;
 
-  -- ตรวจสิทธิ์
   if not core_can(p_emp, 'wh.po.cancel') then
     raise exception 'ไม่มีสิทธิ์ยกเลิกใบสั่งซื้อ';
   end if;
@@ -40,15 +38,17 @@ begin
   select id into v_wh from core_venues where code = 'WH';
 
   -- ถ้ามีของเข้าสต๊อกแล้ว (partial หรือ received) ให้ถอนออก
+  -- join receive_lines → po_order_lines เพื่อดึง product_id
   if v_ord.status in ('partial', 'received') then
     for v_line in
-      select rl.product_id,
+      select pol.product_id,
              sum(rl.qty_good + coalesce(rl.qty_free, 0)) as total_qty
       from   core_wh_receive_logs rlog
-      join   core_wh_receive_lines rl on rl.log_id = rlog.id
+      join   core_wh_receive_lines rl  on rl.log_id  = rlog.id
+      join   core_wh_po_order_lines pol on pol.id = rl.line_id
       where  rlog.order_id = p_order
         and  coalesce(rlog.undone, false) = false
-      group by rl.product_id
+      group by pol.product_id
       having sum(rl.qty_good + coalesce(rl.qty_free, 0)) > 0
     loop
       update core_pos_stock
