@@ -1,5 +1,8 @@
 -- STEP2-14: อัปเดต core_wh_po_order_cancel ให้รองรับ status='received'
--- เจ้าของเท่านั้นสำหรับใบที่รับครบ — ถอนสต๊อกออกทั้งหมด + บันทึก movement
+
+-- เพิ่ม column cancel_reason (ถ้ายังไม่มี)
+ALTER TABLE core_wh_po_orders
+  ADD COLUMN IF NOT EXISTS cancel_reason text;
 
 CREATE OR REPLACE FUNCTION public.core_wh_po_order_cancel(
   p_emp    uuid,
@@ -38,14 +41,13 @@ begin
   select id into v_wh from core_venues where code = 'WH';
 
   -- ถ้ามีของเข้าสต๊อกแล้ว (partial หรือ received) ให้ถอนออก
-  -- join receive_lines → po_order_lines เพื่อดึง product_id
   if v_ord.status in ('partial', 'received') then
     for v_line in
       select pol.product_id,
              sum(rl.qty_good + coalesce(rl.qty_free, 0)) as total_qty
       from   core_wh_receive_logs rlog
-      join   core_wh_receive_lines rl  on rl.log_id  = rlog.id
-      join   core_wh_po_order_lines pol on pol.id = rl.line_id
+      join   core_wh_receive_lines rl   on rl.log_id  = rlog.id
+      join   core_wh_po_order_lines pol on pol.id      = rl.line_id
       where  rlog.order_id = p_order
         and  coalesce(rlog.undone, false) = false
       group by pol.product_id
