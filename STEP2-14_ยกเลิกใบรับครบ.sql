@@ -68,8 +68,7 @@ begin
 
   update core_wh_po_orders
      set status        = 'cancelled',
-         cancel_reason = coalesce(p_reason, 'ยกเลิก'),
-         updated_at    = now()
+         cancel_reason = coalesce(p_reason, 'ยกเลิก')
    where id = p_order;
 
   return 'cancelled';
