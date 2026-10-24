@@ -54,7 +54,7 @@ begin
       having sum(rl.qty_good + coalesce(rl.qty_free, 0)) > 0
     loop
       update core_pos_stock
-         set qty = qty - v_line.total_qty
+         set qty = GREATEST(qty - v_line.total_qty, 0)
        where product_id = v_line.product_id and venue_id = v_wh
       returning qty into v_after;
 
