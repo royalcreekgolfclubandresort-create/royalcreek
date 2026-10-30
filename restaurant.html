@@ -279,8 +279,6 @@ function discHtml(){
 function netTotal(){return Math.round((order.total-(order.total*(Number(disc)||0)/100))*100)/100;}
 async function printOrderSlip(){
   if(!order.items.length){toast('ยังไม่มีรายการ');return;}
-  const {error}=await sb.rpc('core_rest_bill_mark',{p_emp:me.id,p_order:curTable.order_id});
-  if(error){toast(error.message||'ไม่สำเร็จ');return;}
   const dt=new Date();
   const lines=[
     {t:'ctr',s:'บิลโต๊ะ',size:34,bold:true},
@@ -295,7 +293,9 @@ async function printOrderSlip(){
   lines.push({t:'dash'},{t:'lr',l:'รวม',r:baht(order.total),size:32,bold:true},
     {t:'gap',h:10},{t:'ctr',s:'กรุณาตรวจสอบรายการก่อนชำระเงิน',size:18});
   printImage('บิลโต๊ะ', slipImage(lines));
+  const {error}=await sb.rpc('core_rest_bill_mark',{p_emp:me.id,p_order:curTable.order_id});
   await loadOrder();renderBar();
+  if(error){toast('พิมพ์แล้ว แต่ล็อกรายการไม่สำเร็จ: '+(error.message||''));return;}
   toast('พิมพ์บิลแล้ว — รายการถูกล็อก 🔒');
 }
 function addRoundMenu(mid){const m=menu.find(x=>x.id===mid);if(!m)return;const r=round.find(x=>x.kind==='menu'&&x.ref===mid);if(r)r.qty++;else round.push({kind:'menu',ref:mid,name:m.name_th,price:m.price,qty:1});renderBar();toast(m.name_th);}
