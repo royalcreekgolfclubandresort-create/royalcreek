@@ -317,6 +317,7 @@ function renderBillSide(n,sum){
     ${pend?`<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">รอส่งเข้าโต๊ะ</div>${pend}
       <button class="btn" style="height:44px;margin-top:6px" onclick="sendRound()">ส่งเข้าโต๊ะ (${n})</button>`:''}
     <div style="border-top:1px dashed var(--line);margin-top:10px;padding-top:8px">
+    ${lastTicket?`<button class="ghost" style="border:1px solid var(--line);border-radius:10px;width:100%;height:42px;margin-bottom:8px" onclick="printLastTicket()">🖨️ พิมพ์ใบสั่งครัว</button>`:''}
     ${discHtml()}
     <div class="totrow" style="margin:4px 0"><span>สุทธิ</span><span>${baht(netTotal())}</span></div>
     <div class="pay" style="margin:8px 0"><button class="${payMethod==='cash'?'on':''}" onclick="setPay2('cash')">เงินสด</button><button class="${payMethod==='transfer'?'on':''}" onclick="setPay2('transfer')">โอน</button><button class="${payMethod==='usd'?'on':''}" onclick="setPay2('usd')">💵$</button><button class="${payMethod==='krw'?'on':''}" onclick="setPay2('krw')">₩</button></div>
@@ -352,15 +353,21 @@ async function sendRound(){
     if(foods.length){const {error}=await sb.rpc('core_rest_add',{p_emp:me.id,p_order:curTable.order_id,p_items:foods.map(f=>({menu_id:f.menu_id,qty:f.qty}))});if(error)throw error;}
     if(dks.length){const {error}=await sb.rpc('core_rest_add_drinks',{p_emp:me.id,p_order:curTable.order_id,p_items:dks});if(error)throw error;}
   }catch(e){toast(e.message||'ส่งไม่สำเร็จ');return;}
-  if(foods.length)printKitchen(foods);
+  const ticket=round.map(x=>({name:x.name,qty:x.qty}));   // อาหาร + เครื่องดื่มทุกรายการในรอบนี้
+  if(ticket.length)lastTicket={table:curTable.name,items:ticket};   // เก็บไว้ให้กดพิมพ์เอง
   round=[];await loadOrder();await refreshDrinks();toast('ส่งเข้าโต๊ะแล้ว');renderOrder();
 }
 /* ใบครัว — พิมพ์รายการอาหารรอบที่เพิ่งส่ง ให้ครัวทำ (ไม่มีราคา) */
-function printKitchen(foods){
+var lastTicket=null;   // รอบล่าสุดที่ส่งเข้าโต๊ะ (ใช้กดพิมพ์ใบสั่งครัวเอง)
+function printLastTicket(){
+  if(!lastTicket){toast('ยังไม่มีรายการที่ส่งเข้าโต๊ะ');return;}
+  printKitchen(lastTicket.items,lastTicket.table);
+}
+function printKitchen(foods,tname){
   const dt=new Date();
   const lines=[
     {t:'ctr',s:'ใบสั่งครัว',size:36,bold:true},
-    {t:'ctr',s:curTable.name,size:32,bold:true},
+    {t:'ctr',s:tname||curTable.name,size:32,bold:true},
     {t:'ctr',s:dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น. · '+me.name,size:20},
     {t:'dash'}
   ];
@@ -376,6 +383,7 @@ function openBill(){
     <div class="pay"><button class="${payMethod==='cash'?'on':''}" onclick="setPay('cash')">เงินสด</button><button class="${payMethod==='transfer'?'on':''}" onclick="setPay('transfer')">โอน</button><button class="${payMethod==='usd'?'on':''}" onclick="setPay('usd')">💵$</button><button class="${payMethod==='krw'?'on':''}" onclick="setPay('krw')">₩</button></div>
     ${fxLine(order.total||0)?`<div style="text-align:right;font-weight:700;color:#7c3aed;margin:2px 0 6px">${fxLine(order.total||0)}</div>`:''}
     <div class="totrow"><span>สุทธิ</span><span>${baht(netTotal())}</span></div>
+    ${lastTicket?`<button class="ghost" style="border:1px solid var(--line);border-radius:10px;width:100%;height:42px;margin-bottom:8px" onclick="printLastTicket()">🖨️ พิมพ์ใบสั่งครัว</button>`:''}
     <button class="ghost" style="border:1px solid var(--line);border-radius:10px;width:100%;height:42px;margin-bottom:8px" onclick="printOrderSlip();closeModal()">🖨️ พิมพ์บิล (ล็อกรายการ)</button>
     <button class="btn" ${order.items.length?'':'disabled'} onclick="closeBill()">เก็บเงิน ${baht(netTotal())}</button>
     ${me.isManager?`<button class="ghost" style="color:var(--danger)" onclick="voidTable()">ยกเลิกโต๊ะ (ไม่เก็บเงิน)</button>`:''}
