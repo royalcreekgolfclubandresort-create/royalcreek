@@ -352,7 +352,8 @@ async function sendRound(){
     if(foods.length){const {error}=await sb.rpc('core_rest_add',{p_emp:me.id,p_order:curTable.order_id,p_items:foods.map(f=>({menu_id:f.menu_id,qty:f.qty}))});if(error)throw error;}
     if(dks.length){const {error}=await sb.rpc('core_rest_add_drinks',{p_emp:me.id,p_order:curTable.order_id,p_items:dks});if(error)throw error;}
   }catch(e){toast(e.message||'ส่งไม่สำเร็จ');return;}
-  if(foods.length)printKitchen(foods);
+  const ticket=round.map(x=>({name:x.name,qty:x.qty}));   // อาหาร + เครื่องดื่มทุกรายการในรอบนี้
+  if(ticket.length)printKitchen(ticket);
   round=[];await loadOrder();await refreshDrinks();toast('ส่งเข้าโต๊ะแล้ว');renderOrder();
 }
 /* ใบครัว — พิมพ์รายการอาหารรอบที่เพิ่งส่ง ให้ครัวทำ (ไม่มีราคา) */
