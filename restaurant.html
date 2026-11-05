@@ -282,17 +282,17 @@ async function printOrderSlip(){
   if(!order.items.length){toast('ยังไม่มีรายการ');return;}
   const dt=new Date();
   const lines=[
-    {t:'ctr',s:'บิลโต๊ะ',size:34,bold:true},
-    {t:'ctr',s:curTable.name,size:30,bold:true},
-    {t:'ctr',s:'** ยังไม่ชำระเงิน **',size:20},
-    {t:'ctr',s:dt.toLocaleString('th-TH')+' · '+me.name,size:18},
+    {t:'ctr',s:'Royal Creek · ห้องอาหาร',size:36,bold:true},
+    {t:'ctr',s:curTable.name,size:22,bold:true},
+    {t:'ctr',s:'** ยังไม่ชำระเงิน **',size:22},
+    {t:'ctr',s:dt.toLocaleString('th-TH')+' · '+me.name,size:20},
     {t:'dash'}
   ];
   order.items.forEach(it=>{
     lines.push({t:'lr',l:it.name+' × '+it.qty,r:baht(it.total),size:26,bold:true});
   });
-  lines.push({t:'dash'},{t:'lr',l:'รวม',r:baht(order.total),size:32,bold:true},
-    {t:'gap',h:10},{t:'ctr',s:'กรุณาตรวจสอบรายการก่อนชำระเงิน',size:18});
+  lines.push({t:'dash'},{t:'lr',l:'รวมทั้งหมด',r:baht(order.total),size:34,bold:true},
+    {t:'gap',h:12},{t:'ctr',s:'กรุณาตรวจสอบรายการก่อนชำระเงิน',size:20});
   printImage('บิลโต๊ะ', slipImage(lines));
   const {error}=await sb.rpc('core_rest_bill_mark',{p_emp:me.id,p_order:curTable.order_id});
   await loadOrder();renderBar();
@@ -370,12 +370,12 @@ function printKitchen(foods,tname){
   const dt=new Date();
   const lines=[
     {t:'ctr',s:'ใบสั่งครัว',size:36,bold:true},
-    {t:'ctr',s:tname||curTable.name,size:32,bold:true},
+    {t:'ctr',s:tname||curTable.name,size:22,bold:true},
     {t:'ctr',s:dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น. · '+me.name,size:20},
     {t:'dash'}
   ];
-  foods.forEach(f=>lines.push({t:'lr',l:f.name,r:'× '+f.qty,size:30,bold:true}));
-  lines.push({t:'dash'},{t:'ctr',s:'รวม '+foods.reduce((s,x)=>s+x.qty,0)+' รายการ',size:22});
+  foods.forEach(f=>lines.push({t:'lr',l:f.name,r:'× '+f.qty,size:26,bold:true}));
+  lines.push({t:'dash'},{t:'ctr',s:'รวม '+foods.reduce((s,x)=>s+x.qty,0)+' รายการ',size:20});
   printImage('ใบสั่งครัว', slipImage(lines));
 }
 function openBill(){
