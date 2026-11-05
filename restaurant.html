@@ -367,16 +367,20 @@ function printLastTicket(){
   printKitchen(lastTicket.items,lastTicket.table);
 }
 function printKitchen(foods,tname){
+  /* โครงเดียวกับใบเสร็จ (printReceipt) ทุกบรรทัด เปลี่ยนแค่หัวเป็น "ส่งครัว" และไม่มียอดเงิน */
   const dt=new Date();
   const lines=[
-    {t:'ctr',s:'ใบสั่งครัว',size:36,bold:true},
-    {t:'ctr',s:tname||curTable.name,size:22,bold:true},
-    {t:'ctr',s:dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น. · '+me.name,size:20},
+    {t:'ctr',s:'ส่งครัว',size:36,bold:true},
+    {t:'ctr',s:'ห้องอาหาร',size:24},
+    {t:'ctr',s:(tname||curTable.name)+' · '+dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.',size:22},
+    {t:'ctr',s:dt.toLocaleDateString('th-TH'),size:20},
     {t:'dash'}
   ];
-  foods.forEach(f=>lines.push({t:'lr',l:f.name,r:'× '+f.qty,size:26,bold:true}));
-  lines.push({t:'dash'},{t:'ctr',s:'รวม '+foods.reduce((s,x)=>s+x.qty,0)+' รายการ',size:20});
-  printImage('ใบสั่งครัว', slipImage(lines));
+  (foods||[]).forEach(f=>{
+    lines.push({t:'lr',l:f.name,r:'× '+f.qty,size:26,bold:true});
+  });
+  lines.push({t:'dash'});
+  printImage('ส่งครัว', slipImage(lines));
 }
 function openBill(){
   $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
