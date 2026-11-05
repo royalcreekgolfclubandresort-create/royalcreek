@@ -53,15 +53,16 @@
   .chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:10px}
   .chip{padding:7px 13px;border:1.5px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
   .chip .dot{width:9px;height:9px;border-radius:50%}.chip.on{border-color:var(--green-2);background:#eef5f0;color:var(--green-2)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px;margin-top:6px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:9px;margin-top:6px}
   .mi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 8px;text-align:center;min-height:92px;display:flex;flex-direction:column;justify-content:center;gap:3px}
-  .mi:active{background:#fbfaf5;transform:scale(.98)}.mi .em{font-size:24px}.mi .mn{font-size:12px;font-weight:600;line-height:1.15}.mi .mp{font-size:13px;font-weight:700;color:var(--green-2)}
+  .mi:active{background:#fbfaf5;transform:scale(.98)}.mi .em{font-size:24px}.mi .mn{font-size:15px;font-weight:600;line-height:1.15}.mi .mp{font-size:16px;font-weight:700;color:var(--green-2)}
   .catsec-h{grid-column:1/-1;font-weight:700;font-size:13px;margin:10px 2px 0;display:flex;align-items:center;gap:6px}
   .catsec-h .dot{width:9px;height:9px;border-radius:50%}
   .barb{position:fixed;left:0;right:0;bottom:0;background:var(--green);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px;z-index:15}
   .barb .n{background:var(--gold);color:#3a2e0a;font-weight:700;border-radius:20px;padding:2px 10px}
-  .barb .go{margin-left:auto;background:#fff;color:var(--green);border-radius:10px;padding:10px 15px;font-weight:700}
-  .barb .bill{border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:10px 13px;font-weight:700}
+  .barb .go{margin-left:0;background:#fff;color:var(--green);border-radius:10px;padding:10px 15px;font-weight:700}
+  .barb .bill{border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:12px 16px;font-weight:700;font-size:16px;margin-left:auto}
+  .barb .prt{border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:12px 14px;font-weight:700;font-size:15px}
   .row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:11px}
   .row .em{font-size:22px}.row .nm{flex:1;min-width:0}.row .nm b{font-weight:600}.row .nm small{color:var(--muted);display:block;font-size:12px}
   .qbadge{min-width:42px;text-align:center;font-weight:700;padding:4px 8px;border-radius:9px;background:#eef5f0;color:var(--green-2)}.qbadge.low{background:#faece9;color:var(--danger)}
@@ -268,7 +269,7 @@ function paintOrderGrid(){
 }
 function setCat(id){catFilter=id;renderOrder();}
 function billItemsHtml(){
-  return order.items.map(it=>`<div class="ci"><div class="cn">${it.billed?'🔒 ':''}${esc(it.name)} × ${it.qty}<br><small style="color:var(--muted)">${baht(it.price)}</small></div><b>${baht(it.total)}</b>${(me.isManager||!it.billed)?`<button class="del" onclick="delItem('${it.id}')">×</button>`:''}</div>`).join('')||'<div class="empty">ยังไม่มีรายการ</div>';
+  return order.items.map(it=>`<div class="ci"><div class="cn">🔒 ${esc(it.name)} × ${it.qty}<br><small style="color:var(--muted)">${baht(it.price)}</small></div><b>${baht(it.total)}</b>${me.isManager?`<button class="del" onclick="delItem('${it.id}')">×</button>`:''}</div>`).join('')||'<div class="empty">ยังไม่มีรายการ</div>';
 }
 function discHtml(){
   const amt=Math.round(order.total*(Number(disc)||0))/100;
@@ -303,6 +304,7 @@ function addRoundDrink(pid){const d=drinks.find(x=>x.product_id===pid);if(!d)ret
 function renderBar(){
   const n=round.reduce((s,x)=>s+x.qty,0), sum=round.reduce((s,x)=>s+x.qty*x.price,0);
   $('barb').innerHTML=`<span class="n">${n}</span><span>รอส่ง ${baht(sum)}</span>
+    ${lastTicket&&curTable&&lastTicket.table===curTable.name?'<button class="prt" onclick="printLastTicket()">🖨️ ใบครัว</button>':''}
     <button class="bill" onclick="openBill()">🧾 บิล ${baht(order.total)}</button>
     <button class="go" ${n?'':'style=opacity:.5'} onclick="sendRound()">ส่งเข้าโต๊ะ ›</button>`;
   $('barb').style.display=(window.innerWidth>=900)?'none':'';
@@ -354,11 +356,12 @@ async function sendRound(){
     if(dks.length){const {error}=await sb.rpc('core_rest_add_drinks',{p_emp:me.id,p_order:curTable.order_id,p_items:dks});if(error)throw error;}
   }catch(e){toast(e.message||'ส่งไม่สำเร็จ');return;}
   const ticket=round.map(x=>({name:x.name,qty:x.qty}));   // อาหาร + เครื่องดื่มทุกรายการในรอบนี้
-  if(ticket.length)lastTicket={table:curTable.name,items:ticket};   // เก็บไว้ให้กดพิมพ์เอง
+  if(ticket.length){lastTicket={table:curTable.name,items:ticket};try{sessionStorage.setItem('rcLastTicket',JSON.stringify(lastTicket));}catch(e){}}   // เก็บไว้ให้กดพิมพ์เอง
   round=[];await loadOrder();await refreshDrinks();toast('ส่งเข้าโต๊ะแล้ว');renderOrder();
 }
 /* ใบครัว — พิมพ์รายการอาหารรอบที่เพิ่งส่ง ให้ครัวทำ (ไม่มีราคา) */
-var lastTicket=null;   // รอบล่าสุดที่ส่งเข้าโต๊ะ (ใช้กดพิมพ์ใบสั่งครัวเอง)
+var lastTicket=null;
+try{lastTicket=JSON.parse(sessionStorage.getItem('rcLastTicket')||'null');}catch(e){lastTicket=null;}   // รอบล่าสุดที่ส่งเข้าโต๊ะ (ใช้กดพิมพ์ใบสั่งครัวเอง)
 function printLastTicket(){
   if(!lastTicket){toast('ยังไม่มีรายการที่ส่งเข้าโต๊ะ');return;}
   printKitchen(lastTicket.items,lastTicket.table);
@@ -378,7 +381,7 @@ function printKitchen(foods,tname){
 function openBill(){
   $('modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeModal()"><div class="sheet">
     <h3>บิล · ${esc(curTable.name)}</h3>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">🔒 = พิมพ์บิลแล้ว ลบได้เฉพาะผู้จัดการ</p>${billItemsHtml()}
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">🔒 = บันทึกเข้าโต๊ะแล้ว ลบได้เฉพาะผู้จัดการ</p>${billItemsHtml()}
     ${discHtml()}
     <div class="pay"><button class="${payMethod==='cash'?'on':''}" onclick="setPay('cash')">เงินสด</button><button class="${payMethod==='transfer'?'on':''}" onclick="setPay('transfer')">โอน</button><button class="${payMethod==='usd'?'on':''}" onclick="setPay('usd')">💵$</button><button class="${payMethod==='krw'?'on':''}" onclick="setPay('krw')">₩</button></div>
     ${fxLine(order.total||0)?`<div style="text-align:right;font-weight:700;color:#7c3aed;margin:2px 0 6px">${fxLine(order.total||0)}</div>`:''}
