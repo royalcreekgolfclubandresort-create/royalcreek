@@ -53,15 +53,15 @@
   .chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:10px}
   .chip{padding:7px 13px;border:1.5px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
   .chip .dot{width:9px;height:9px;border-radius:50%}.chip.on{border-color:var(--green-2);background:#eef5f0;color:var(--green-2)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:9px;margin-top:6px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px;margin-top:6px}
   .mi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 8px;text-align:center;min-height:92px;display:flex;flex-direction:column;justify-content:center;gap:3px}
-  .mi:active{background:#fbfaf5;transform:scale(.98)}.mi .em{font-size:24px}.mi .mn{font-size:15px;font-weight:600;line-height:1.15}.mi .mp{font-size:16px;font-weight:700;color:var(--green-2)}
+  .mi:active{background:#fbfaf5;transform:scale(.98)}.mi .em{font-size:24px}.mi .mn{font-size:12px;font-weight:600;line-height:1.15}.mi .mp{font-size:13px;font-weight:700;color:var(--green-2)}
   .catsec-h{grid-column:1/-1;font-weight:700;font-size:13px;margin:10px 2px 0;display:flex;align-items:center;gap:6px}
   .catsec-h .dot{width:9px;height:9px;border-radius:50%}
   .barb{position:fixed;left:0;right:0;bottom:0;background:var(--green);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px;z-index:15}
   .barb .n{background:var(--gold);color:#3a2e0a;font-weight:700;border-radius:20px;padding:2px 10px}
   .barb .go{margin-left:0;background:#fff;color:var(--green);border-radius:10px;padding:10px 15px;font-weight:700}
-  .barb .bill{border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:12px 16px;font-weight:700;font-size:16px;margin-left:auto}
+  .barb .bill{border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:10px 13px;font-weight:700;margin-left:auto}
   .barb .prt{border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:12px 14px;font-weight:700;font-size:15px}
   .row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:11px}
   .row .em{font-size:22px}.row .nm{flex:1;min-width:0}.row .nm b{font-weight:600}.row .nm small{color:var(--muted);display:block;font-size:12px}
@@ -282,17 +282,17 @@ async function printOrderSlip(){
   if(!order.items.length){toast('ยังไม่มีรายการ');return;}
   const dt=new Date();
   const lines=[
-    {t:'ctr',s:'บิลโต๊ะ',size:34,bold:true},
-    {t:'ctr',s:curTable.name,size:30,bold:true},
-    {t:'ctr',s:'** ยังไม่ชำระเงิน **',size:20},
-    {t:'ctr',s:dt.toLocaleString('th-TH')+' · '+me.name,size:18},
+    {t:'ctr',s:'Royal Creek · ห้องอาหาร',size:36,bold:true},
+    {t:'ctr',s:curTable.name,size:22,bold:true},
+    {t:'ctr',s:'** ยังไม่ชำระเงิน **',size:22},
+    {t:'ctr',s:dt.toLocaleString('th-TH')+' · '+me.name,size:20},
     {t:'dash'}
   ];
   order.items.forEach(it=>{
     lines.push({t:'lr',l:it.name+' × '+it.qty,r:baht(it.total),size:26,bold:true});
   });
-  lines.push({t:'dash'},{t:'lr',l:'รวม',r:baht(order.total),size:32,bold:true},
-    {t:'gap',h:10},{t:'ctr',s:'กรุณาตรวจสอบรายการก่อนชำระเงิน',size:18});
+  lines.push({t:'dash'},{t:'lr',l:'รวมทั้งหมด',r:baht(order.total),size:34,bold:true},
+    {t:'gap',h:12},{t:'ctr',s:'กรุณาตรวจสอบรายการก่อนชำระเงิน',size:20});
   printImage('บิลโต๊ะ', slipImage(lines));
   const {error}=await sb.rpc('core_rest_bill_mark',{p_emp:me.id,p_order:curTable.order_id});
   await loadOrder();renderBar();
@@ -370,12 +370,12 @@ function printKitchen(foods,tname){
   const dt=new Date();
   const lines=[
     {t:'ctr',s:'ใบสั่งครัว',size:36,bold:true},
-    {t:'ctr',s:tname||curTable.name,size:32,bold:true},
+    {t:'ctr',s:tname||curTable.name,size:22,bold:true},
     {t:'ctr',s:dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น. · '+me.name,size:20},
     {t:'dash'}
   ];
-  foods.forEach(f=>lines.push({t:'lr',l:f.name,r:'× '+f.qty,size:30,bold:true}));
-  lines.push({t:'dash'},{t:'ctr',s:'รวม '+foods.reduce((s,x)=>s+x.qty,0)+' รายการ',size:22});
+  foods.forEach(f=>lines.push({t:'lr',l:f.name,r:'× '+f.qty,size:26,bold:true}));
+  lines.push({t:'dash'},{t:'ctr',s:'รวม '+foods.reduce((s,x)=>s+x.qty,0)+' รายการ',size:20});
   printImage('ใบสั่งครัว', slipImage(lines));
 }
 function openBill(){
