@@ -41,8 +41,6 @@
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:11px;font-size:14px;opacity:0;transition:.25s;z-index:40}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .qin{width:64px;height:40px;border:1.5px solid var(--line);border-radius:9px;text-align:center;background:#fbfaf5}
   .g2b{display:flex;gap:8px;margin-bottom:10px}.g2b>*{flex:1}
-  .seg{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 4px;font-weight:700;font-size:13.5px;color:var(--muted);background:#fbfaf5}.seg.on{background:var(--green-2);color:#fff;border-color:var(--green-2)}
-  .pkNm.onx{background:var(--green-2);color:#fff;border-color:var(--green-2)}
   .picker{max-height:360px;overflow:auto;margin-bottom:6px}
   .pk{border:1.5px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px;font-weight:600;background:#fbfaf5}
   .pk:active{background:#eef5f0;border-color:var(--green-2)}
@@ -184,8 +182,8 @@ async function loadPoHistory(){
 }
 function openPO(p){
   const dt=new Date(p.at);
-  const canDel=(me.isOwner||toolCan.item_delete)&&p.status!=='cancelled'&&!String(p.note||'').startsWith('ตรวจรับ #');
-  const rows=(p.items||[]).map(it=>`<div class="row"><div class="nm">${esc(it.name)}<small style="color:var(--muted);display:block">${it.qty} × ${baht(it.cost)}</small></div><b>${baht(it.total)}</b>${(toolCan.cost_edit&&it.item_id)?`<button class="mini" style="margin-left:8px" onclick='fixCost("${it.item_id}","${esc(it.name)}",${Number(it.cost)||0})'>🔧</button>`:''}${(canDel&&it.item_id)?`<button class="mini" style="color:var(--danger);margin-left:8px" onclick='delPOItem("${it.item_id}","${esc(it.name)}")'>×</button>`:''}</div>`).join('');
+  const canDel=(me.isOwner||me.canWH)&&p.status!=='cancelled';
+  const rows=(p.items||[]).map(it=>`<div class="row"><div class="nm">${esc(it.name)}<small style="color:var(--muted);display:block">${it.qty} × ${baht(it.cost)}</small></div><b>${baht(it.total)}</b>${(canDel&&it.item_id)?`<button class="mini" style="color:var(--danger);margin-left:8px" onclick='delPOItem("${it.item_id}","${esc(it.name)}")'>×</button>`:''}</div>`).join('');
   document.body.insertAdjacentHTML('beforeend',`<div class="ov" id="poOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(20,25,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:30"><div class="lcard" style="max-width:520px;border-radius:20px 20px 0 0;max-height:85vh;overflow:auto">
     <h3 style="margin:0 0 4px">${p.po?esc(p.po):'ใบสั่งซื้อ'} · ${esc(p.supplier||'ไม่ระบุซัพ')}</h3>
     <p style="font-size:12px;color:var(--muted);margin:0 0 10px">${dt.toLocaleString('th-TH')} · โดย ${esc(p.by||'')}</p>
@@ -196,9 +194,9 @@ function openPO(p){
     <button class="btn" style="background:none;color:var(--muted);height:42px" onclick="document.getElementById('poOv').remove()">ปิด</button></div></div>`);
 }
 async function delPOItem(id,name){
-  if(!confirm('ลบ "'+name+'" ออกจากใบนี้?\n⚠️ ระบบจะถอนสินค้าออกจากสต๊อก+หักยอดใบทันที'))return;
+  if(!confirm('ลบ "'+name+'" ออกจากใบซื้อ? ระบบถอนของออกจากคลัง+หักยอดใบ'))return;
   const {error}=await sb.rpc('core_wh_po_item_del',{p_emp:me.id,p_item:id});
-  if(error){alert('ลบไม่สำเร็จ:\n'+(error.message||''));return;}
+  if(error){toast(error.message||'ไม่สำเร็จ');return;}
   toast('ลบรายการแล้ว ✓');document.getElementById('poOv')&&document.getElementById('poOv').remove();
   loadPO&&loadPO();loadData&&loadData();}
 async function cancelPO(id,po){
@@ -221,497 +219,17 @@ function printPO(p){
     <div style="text-align:right;font-weight:700;font-size:16px;margin-top:8px">รวมทั้งใบ ${baht(p.total)}</div>`);
 }
 
-/* ===== ซื้อเข้า (ทาง A: สั่งซื้อ → ตรวจรับ → เข้าสต๊อก) ===== */
-let buyMode='order',ordItems=[],recvOrders=[],histOrders=[],draftOrders=[],editingDraft=null,packs={},toolCan={},vatOrd=true;
-function rnd(n){return Math.round((Number(n)||0)*100)/100;}
-function packOf(pid){const p=packs[String(pid)];return (p&&Number(p.qty)>1)?{qty:Number(p.qty),name:p.name||'ลัง'}:null;}
-function setPack(pid){
-  const cur=packOf(pid);
-  const names=['ลัง','ถาด','แพ็ค','โหล','มัด','กล่อง'];
-  document.body.insertAdjacentHTML('beforeend',`<div class="ov" id="pkOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(20,25,20,.55);display:flex;align-items:center;justify-content:center;z-index:40;padding:14px"><div class="lcard" style="max-width:400px;width:100%;border-radius:18px">
-    <h3 style="margin:0 0 3px">📦 หน่วยใหญ่ของสินค้า</h3>
-    <p style="font-size:13.5px;margin:0 0 10px;font-weight:600">${esc(pName(pid))}</p>
-    <div class="f"><label>เรียกหน่วยใหญ่ว่า</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${names.map(n=>`<button class="mini pkNm${cur&&cur.name===n?' onx':''}" onclick="pkPick(this)">${n}</button>`).join('')}
-      <input class="in" id="pkCustom" placeholder="อื่นๆ…" style="width:90px;height:38px" oninput="pkClear()"></div></div>
-    <div class="f"><label>ตัวคูณ — 1 หน่วยใหญ่ = กี่หน่วยย่อย</label>
-      <input class="in" id="pkQty" type="number" inputmode="numeric" value="${cur?cur.qty:24}"></div>
-    <button class="btn" onclick="pkSave(${pid})">💾 บันทึก</button>
-    <button class="btn" style="background:none;color:var(--danger);height:40px" onclick="pkSave(${pid},1)">ไม่ใช้หน่วยใหญ่ (คีย์เป็นหน่วยย่อย)</button>
-    <button class="btn" style="background:none;color:var(--muted);height:38px" onclick="document.getElementById('pkOv').remove()">ปิด</button>
-  </div></div>`);
-}
-function pkPick(b){document.querySelectorAll('.pkNm').forEach(x=>x.classList.remove('onx'));b.classList.add('onx');const c=$('pkCustom');if(c)c.value='';}
-function pkClear(){document.querySelectorAll('.pkNm').forEach(x=>x.classList.remove('onx'));}
-async function pkSave(pid,force){
-  const qty=force===1?1:(Number(($('pkQty')||{}).value)||0);
-  if(force!==1&&qty<2){alert('ตัวคูณต้องอย่างน้อย 2\n(หรือกด "ไม่ใช้หน่วยใหญ่")');return;}
-  let nm='ลัง';
-  const sel=document.querySelector('.pkNm.onx');const c=(($('pkCustom')||{}).value||'').trim();
-  if(c)nm=c;else if(sel)nm=sel.textContent;
-  const {error}=await sb.rpc('core_wh_pack_set',{p_emp:me.id,p_product:pid,p_qty:qty,p_name:nm});
-  if(error){alert('บันทึกไม่สำเร็จ:\n'+(error.message||''));return;}
-  if(qty>1)packs[String(pid)]={qty:qty,name:nm};else delete packs[String(pid)];
-  toast(qty>1?('1 '+nm+' = '+qty+' หน่วย ✓'):'ปิดหน่วยใหญ่แล้ว — คีย์เป็นหน่วยย่อย');
-  const pv=document.getElementById('pkOv');if(pv)pv.remove();
-  renderOrdLines();
-  const ov=document.getElementById('rcOv');
-  if(ov){const oid=Number(ov.dataset.oid||0);ov.remove();if(oid)openRecv(oid);}
-  const rd=document.getElementById('rdOv');
-  if(rd){const oid2=Number(rd.dataset.oid||0);rd.remove();if(oid2)openRecvDetail(oid2);}
-}
+/* ===== ซื้อเข้า ===== */
 function renderBuy(){
-  $('vBuy').innerHTML=`
-  <div class="card" style="padding:9px"><div style="display:flex;gap:7px">
-    <button class="seg" id="sgorder" onclick="setBuyMode('order')">📝 สั่งซื้อ</button>
-    <button class="seg" id="sgrecv" onclick="setBuyMode('recv')">📦 ตรวจรับ <span id="recvBadge"></span></button>
-    <button class="seg" id="sgquick" onclick="setBuyMode('quick')">⚡ รับด่วน</button>
-  </div></div>
-  <div id="bmorder">
-    <div class="card">
-      <div class="sec-h" style="margin-top:0">📝 สร้างใบสั่งซื้อ (ใบร่าง) — แก้ไขได้จนกว่าจะกดยืนยัน</div>
-      <div id="editBanner"></div>
-      <div class="g2b"><input class="in" id="oSup" placeholder="ซัพพลายเออร์"><input class="in" id="oNote" placeholder="หมายเหตุ (ถ้ามี)"></div>
-      <div class="sec-h">เลือกสินค้า <button class="mini" style="float:right" onclick="newProd()">＋ สินค้าใหม่</button></div>
-      <input class="in" id="oSearch" placeholder="ค้นหาสินค้า…" oninput="filterOrdPicker()" style="margin-bottom:8px">
-      <div class="picker" id="ordPicker"></div>
-      <div id="ordLines"></div>
-    </div>
-    <div class="card"><div class="sec-h" style="margin-top:0">🗂 ใบร่าง รอยืนยัน <span id="draftCount"></span> — แตะเพื่อแก้ไข</div>
-      <div id="draftList"><div class="empty">กำลังโหลด…</div></div></div>
-  </div>
-  <div id="bmrecv" class="hidden"><div class="empty">กำลังโหลด…</div></div>
-  <div id="bmquick" class="hidden">
-    <div class="card">
-    <div class="sec-h" style="margin-top:0">⚡ รับเข้าด่วน (ไม่ผ่านใบสั่งซื้อ) — ของเข้าสต๊อกทันที</div>
+  $('vBuy').innerHTML=`<div class="card">
+    <div class="sec-h">ใบสั่งซื้อ / รับของเข้าคลัง</div>
     <div class="g2b"><input class="in" id="pSup" placeholder="ซัพพลายเออร์ (ถ้ามี)"><input class="in" id="pPo" placeholder="เลขที่ใบสั่งซื้อ"></div>
     <div class="sec-h">เลือกสินค้า <button class="mini" style="float:right" onclick="newProd()">＋ สินค้าใหม่</button></div>
     <input class="in" id="bSearch" placeholder="ค้นหาสินค้า…" oninput="filterPicker()" style="margin-bottom:8px">
     <div class="picker" id="buyPicker"></div>
     <div id="buyLines"></div></div>
-    <div class="card"><div class="sec-h" style="margin-top:0">📄 ประวัติรับด่วน (แตะเพื่อดู/พิมพ์)</div><div id="poHist"><div class="empty">กำลังโหลด…</div></div></div>
-  </div>`;
+    <div class="card"><div class="sec-h" style="margin-top:0">📄 ประวัติใบสั่งซื้อ (แตะเพื่อดู/พิมพ์)</div><div id="poHist"><div class="empty">กำลังโหลด…</div></div></div>`;
   filterPicker();renderLines();loadPoHistory();
-  filterOrdPicker();renderOrdLines();
-  setBuyMode(buyMode);loadRecvData();
-}
-function setBuyMode(m){buyMode=m;['order','recv','quick'].forEach(x=>{
-  const s=$('sg'+x),b=$('bm'+x);if(s)s.classList.toggle('on',x===m);if(b)b.classList.toggle('hidden',x!==m);});
-  if(m==='recv')loadRecvData();}
-function pName(pid){const p=prods.find(x=>x.id===Number(pid));return p?((p.emoji||'📦')+' '+p.name_th):('#'+pid);}
-
-/* --- โหมดสร้างใบสั่งซื้อ --- */
-function filterOrdPicker(){
-  const el=$('ordPicker');if(!el)return;
-  const q=(($('oSearch')||{}).value||'').trim().toLowerCase();
-  const m=prods.filter(p=>!q||(p.name_th||'').toLowerCase().includes(q));
-  el.innerHTML=m.length?m.map(p=>`<div class="row" style="cursor:pointer;margin-bottom:6px" onclick="addOrdLine(${p.id})">
-      <div class="nm">${esc(p.emoji||'📦')} ${esc(p.name_th)}<small style="color:var(--muted);display:block">คลังเหลือ ${p.qty??0}</small></div>
-      <span class="addl">＋ สั่ง</span></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:6px">ไม่พบสินค้า</div>';
-}
-function addOrdLine(pid){if(!ordItems.find(x=>x.pid===pid))ordItems.push({pid,qty:1,cost:Number(lastCosts[String(pid)])||0});renderOrdLines();}
-function editOrd(i,k,v){ordItems[i][k]=Number(v)||0;renderOrdLines();}
-function rmOrd(i){ordItems.splice(i,1);renderOrdLines();}
-function renderOrdLines(){
-  const el=$('ordLines');if(!el)return;
-  const lines=ordItems.map((it,i)=>{const pk=packOf(it.pid);
-    if(pk){const u=pk.qty;
-      return `<div class="pline"><div class="nm">${esc(pName(it.pid))}<small style="color:var(--muted);display:block">= ${rnd(it.qty)} หน่วย (1 ${esc(pk.name)} = ${u}) · <a href="#" style="color:var(--green-2)" onclick="setPack(${it.pid});return false">แก้ขนาด</a></small></div>
-      <input class="qin" type="number" inputmode="decimal" value="${rnd(it.qty/u)}" onchange="editOrd(${i},'qty',(Number(this.value)||0)*${u})" title="จำนวน${esc(pk.name)}">
-      <input class="qin" type="number" inputmode="decimal" value="${rnd(it.cost*u)}" onchange="editOrd(${i},'cost',(Number(this.value)||0)/${u})" title="ราคา/${esc(pk.name)}" style="width:86px">
-      <button class="del" onclick="rmOrd(${i})">×</button></div>`;}
-    return `<div class="pline"><div class="nm">${esc(pName(it.pid))}<small style="display:block"><a href="#" style="color:var(--green-2)" onclick="setPack(${it.pid});return false">📦 ตั้งหน่วยใหญ่</a></small></div>
-      <input class="qin" type="number" inputmode="numeric" value="${it.qty}" onchange="editOrd(${i},'qty',this.value)" title="จำนวนสั่ง (หน่วย)">
-      <input class="qin" type="number" inputmode="decimal" value="${it.cost}" onchange="editOrd(${i},'cost',this.value)" title="ราคา/หน่วยตกลง" style="width:86px">
-      <button class="del" onclick="rmOrd(${i})">×</button></div>`;}).join('');
-  const total=ordItems.reduce((s,x)=>s+x.qty*x.cost,0);
-  el.innerHTML=ordItems.length?`<div class="pline" style="font-size:12px;color:var(--muted);padding-bottom:2px"><div class="nm">สินค้า</div><span style="width:64px;text-align:center">จำนวน</span><span style="width:86px;text-align:center">ราคา</span><span style="width:22px"></span></div>
-    ${lines}
-    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;margin:10px 0 4px"><input type="checkbox" ${vatOrd?'checked':''} onchange="vatOrd=this.checked;renderOrdLines()" style="width:19px;height:19px"> ราคาที่กรอก <b>รวม VAT แล้ว</b> (ไม่ติ๊ก = ระบบบวก 7% ให้)</label>
-    ${vatOrd?`<div style="display:flex;justify-content:space-between;font-weight:800;font-size:17px;margin:4px 0 8px"><span>ประมาณการทั้งใบ</span><span>${baht(total)}</span></div>`
-    :`<div style="font-size:13.5px;color:var(--muted);display:flex;justify-content:space-between"><span>ยอดที่กรอก (ก่อน VAT)</span><span>${baht(total)}</span></div>
-      <div style="font-size:13.5px;color:var(--muted);display:flex;justify-content:space-between"><span>VAT 7%</span><span>${baht(total*0.07)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-weight:800;font-size:17px;margin:4px 0 8px"><span>สุทธิรวม VAT</span><span>${baht(total*1.07)}</span></div>`}
-    <button class="btn" onclick="saveOrder()">${editingDraft?'💾 บันทึกการแก้ไข':'💾 บันทึกใบร่าง (ยังแก้ได้)'}</button>`:'<div style="color:var(--muted);font-size:13px;margin-top:8px">แตะสินค้าด้านบนเพื่อเพิ่มเข้าใบสั่ง</div>';
-}
-async function saveOrder(){
-  const items=ordItems.filter(x=>x.qty>0).map(x=>({product_id:x.pid,qty:x.qty,cost:vatOrd?x.cost:Math.round(x.cost*1.07*10000)/10000}));
-  if(!items.length){toast('ใส่จำนวนสั่งอย่างน้อย 1 รายการ');return;}
-  const sup=(($('oSup')||{}).value||'').trim(), note=(($('oNote')||{}).value||'').trim();
-  if(editingDraft){
-    const {data,error}=await sb.rpc('core_wh_po_update',{p_emp:me.id,p_order:editingDraft,p_supplier:sup,p_note:note,p_items:items});
-    if(error){toast(error.message||'บันทึกไม่สำเร็จ');return;}
-    toast('บันทึกการแก้ไข '+(data&&data.po_number?data.po_number:'')+' แล้ว ✓ (ยังแก้ต่อได้จนกว่าจะยืนยัน)');
-  }else{
-    const {data,error}=await sb.rpc('core_wh_po_create',{p_emp:me.id,p_supplier:sup,p_note:note,p_items:items});
-    if(error){toast(error.message||'บันทึกไม่สำเร็จ');return;}
-    toast('สร้างใบร่าง '+(data&&data.po_number?data.po_number:'')+' แล้ว — กด ✅ ยืนยันเมื่อพร้อมสั่งจริง');
-  }
-  cancelEdit();loadRecvData();
-}
-function cancelEdit(){
-  editingDraft=null;ordItems=[];vatOrd=true;renderOrdLines();
-  if($('oSup'))$('oSup').value='';if($('oNote'))$('oNote').value='';
-  const b=$('editBanner');if(b)b.innerHTML='';
-}
-function editDraft(id){
-  const o=draftOrders.find(x=>x.id===id);if(!o)return;
-  editingDraft=id;
-  ordItems=(o.lines||[]).map(l=>({pid:Number(l.product_id),qty:Number(l.qty_ordered),cost:Number(l.est_cost)}));
-  if($('oSup'))$('oSup').value=o.supplier||'';if($('oNote'))$('oNote').value=o.note||'';
-  const b=$('editBanner');if(b)b.innerHTML=`<div style="background:#f6efd9;border:1px solid #e6d29a;border-radius:11px;padding:9px 12px;margin-bottom:10px;font-size:13px">✏️ กำลังแก้ไข <b>${esc(o.po_number)}</b> — เพิ่ม/ลบ/แก้จำนวนได้เลย <button class="mini" style="float:right" onclick="cancelEdit()">เลิกแก้ไข</button></div>`;
-  renderOrdLines();setBuyMode('order');
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-function renderDrafts(){
-  const el=$('draftList');if(!el)return;
-  const c=$('draftCount');if(c)c.innerHTML=draftOrders.length?`<span style="background:#e23b3b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${draftOrders.length}</span>`:'';
-  el.innerHTML=draftOrders.length?draftOrders.map(o=>{const dt=new Date(o.created_at);
-    const total=(o.lines||[]).reduce((s,l)=>s+Number(l.qty_ordered)*Number(l.est_cost),0);
-    return `<div class="row"><div class="nm" style="cursor:pointer" onclick="editDraft(${o.id})"><b>${esc(o.po_number)} · ${esc(o.supplier||'ไม่ระบุซัพ')}</b>
-      <small>${dt.toLocaleDateString('th-TH')} · ${esc(o.created_by_name||'')} · ${(o.lines||[]).length} รายการ · ประมาณ ${baht(total)} — แตะเพื่อแก้ไข</small></div>
-      <button class="mini" style="background:var(--green-2);color:#fff;border-color:var(--green-2)" onclick="confirmDraft(${o.id},'${esc(o.po_number)}')">✅ ยืนยัน</button>
-      <button class="mini" style="color:var(--danger)" onclick="delDraft(${o.id},'${esc(o.po_number)}')">🗑</button></div>`;}).join('')
-    :'<div class="empty">ไม่มีใบร่าง</div>';
-}
-async function confirmDraft(id,po){
-  if(!confirm('ยืนยันคำสั่งซื้อ '+po+' ?\n\n⚠️ หลังยืนยันจะแก้ไขใบนี้ไม่ได้อีก และใบจะไปรอที่หน้า 📦 ตรวจรับ'))return;
-  const {error}=await sb.rpc('core_wh_po_confirm',{p_emp:me.id,p_order:id});
-  if(error){alert('ยืนยันไม่สำเร็จ:\n'+(error.message||JSON.stringify(error)));return;}
-  if(editingDraft===id)cancelEdit();
-  toast('ยืนยัน '+po+' แล้ว ✓ ใบไปรอที่หน้าตรวจรับ');loadRecvData();
-}
-async function delDraft(id,po){
-  if(!confirm('ลบใบร่าง '+po+' ทิ้ง?'))return;
-  const {error}=await sb.rpc('core_wh_po_order_cancel',{p_emp:me.id,p_order:id});
-  if(error){toast(error.message||'ลบไม่สำเร็จ');return;}
-  if(editingDraft===id)cancelEdit();
-  toast('ลบใบร่างแล้ว');loadRecvData();
-}
-
-/* --- โหมดตรวจรับ --- */
-async function loadRecvData(){
-  sb.rpc('core_wh_pack_all',{p_emp:me.id}).then(r=>{if(r&&r.data){packs=r.data;renderOrdLines();}});
-  sb.rpc('core_wh_tool_can',{p_emp:me.id}).then(r=>{if(r&&r.data)toolCan=r.data;});
-  const {data,error}=await sb.rpc('core_wh_po_orders_list',{p_emp:me.id,p_status:null,p_limit:40});
-  if(error){const el=$('bmrecv');if(el)el.innerHTML='<div class="empty">'+esc(error.message||'โหลดไม่สำเร็จ')+'</div>';return;}
-  const all=data||[];
-  draftOrders=all.filter(o=>o.status==='draft');
-  recvOrders=all.filter(o=>o.status==='ordered'||o.status==='partial');
-  histOrders=all.filter(o=>o.status==='received'||o.status==='cancelled');
-  renderDrafts();
-  const b=$('recvBadge');if(b)b.innerHTML=recvOrders.length?`<span style="background:#e23b3b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${recvOrders.length}</span>`:'';
-  renderRecv();
-}
-function ordDiff(o){let short=0,dmg=0;
-  (o.lines||[]).forEach(l=>{if(Number(l.qty_received)<Number(l.qty_ordered))short++;dmg+=Number(l.qty_damaged)||0;});
-  return {short,dmg};}
-function renderRecv(){
-  const el=$('bmrecv');if(!el)return;
-  const open=recvOrders.map(o=>{const dt=new Date(o.created_at);
-    const remain=(o.lines||[]).reduce((s,l)=>s+Math.max(0,Number(l.qty_ordered)-Number(l.qty_received)),0);
-    return `<div class="row" style="cursor:pointer" onclick="openRecv(${o.id})"><div class="nm"><b>${esc(o.po_number)} · ${esc(o.supplier||'ไม่ระบุซัพ')}</b>
-      <small>${dt.toLocaleDateString('th-TH')} · ${esc(o.created_by_name||'')} · ${(o.lines||[]).length} รายการ${o.status==='partial'?' · <span style="color:#8a6d1f;font-weight:700">รับบางส่วนแล้ว</span>':''}</small></div>
-      <span class="qbadge ${remain>0?'low':''}">ค้าง ${remain}</span>
-      <button class="mini" style="color:var(--danger)" onclick="event.stopPropagation();cancelOrder(${o.id},'${esc(o.po_number)}','${o.status}')">${o.status==='partial'?'✋':'🗑'}</button></div>`;}).join('');
-  const hist=histOrders.map(o=>{const dt=new Date(o.created_at);const d=ordDiff(o);const cx=o.status==='cancelled';
-    return `<div class="row" style="cursor:pointer;${cx?'opacity:.55':''}" onclick="openRecvDetail(${o.id})"><div class="nm"><b>${cx?'<span style="color:var(--danger)">[ยกเลิก]</span> ':''}${esc(o.po_number)} · ${esc(o.supplier||'ไม่ระบุซัพ')}</b>
-      <small>${dt.toLocaleDateString('th-TH')} · ${esc(o.created_by_name||'')}</small></div>
-      ${cx?'':(d.short?`<span class="short">ขาด ${d.short} รายการ${o.short_reviewed?'':' · <b>รอเจ้าของตรวจ</b>'}</span>${o.short_reviewed?`<span style="color:var(--ok);font-weight:600;font-size:12.5px;margin-left:6px">✓ เจ้าของรับทราบ</span>`:''}`:`<span style="color:var(--ok);font-weight:600;font-size:13px">✓ ครบ</span>`)}${d.dmg?`<span class="short" style="margin-left:6px">ชำรุด ${d.dmg}</span>`:''}</div>`;}).join('');
-  el.innerHTML=`<div class="card"><div class="sec-h" style="margin-top:0">📦 รอตรวจรับ (${recvOrders.length}) — แตะใบเพื่อตรวจรับของ</div>
-    ${open||'<div class="empty">ไม่มีใบค้างรับ 👍</div>'}</div>
-    <div class="card"><div class="sec-h" style="margin-top:0">📄 ประวัติใบสั่งซื้อ (แตะเพื่อดู/พิมพ์)</div>${hist||'<div class="empty">ยังไม่มี</div>'}</div>`;
-}
-function openRecv(id){
-  const o=recvOrders.find(x=>x.id===id);if(!o)return;
-  const pend=(o.lines||[]).filter(l=>Math.max(0,Number(l.qty_ordered)-Number(l.qty_received))>0)
-    .sort((a,b)=>((Number(a.qty_received)>0)-(Number(b.qty_received)>0))||(Number(a.line_id)-Number(b.line_id)));
-  const done=(o.lines||[]).filter(l=>Number(l.qty_received)>0);
-  const doneRows=done.length?`<div class="sec-h" style="margin:12px 0 4px">✅ รับมาแล้ว (${done.length}) — เงินที่จ่ายไปแล้ว</div>`+done.map(l=>{const pk=packOf(l.product_id);const qr=Number(l.qty_received);
-    const rem=Math.max(0,Number(l.qty_ordered)-qr);
-    const ra=Number(l.recv_amount)||0;const ac=qr>0?ra/qr:0;
-    const qtxt=pk?rnd(qr/pk.qty)+' '+esc(pk.name)+' ('+qr+' หน่วย)':qr+' หน่วย';
-    const ptxt=qr>0?(pk?baht(ac*pk.qty)+'/'+esc(pk.name):baht(ac)+'/หน่วย'):'';
-    return `<div class="row" style="${rem>0?'':'opacity:.72'}"><div class="nm">${esc(pName(l.product_id))}<small>${rem>0?'รับแล้ว':'รับครบ'} ${qtxt}${ptxt?' × '+ptxt:''}${Number(l.qty_free)>0?' · 🎁แถม '+l.qty_free:''}${Number(l.qty_damaged)>0?' · ชำรุด '+l.qty_damaged:''}${rem>0?' · <b style="color:#8a6d1f">ยังค้าง '+(pk?rnd(rem/pk.qty)+' '+esc(pk.name):rem+' หน่วย')+' (อยู่ด้านบน)</b>':''}</small></div><b>${baht(ra)}</b><span style="color:var(--ok);margin-left:6px">${rem>0?'⏳':'✓'}</span></div>`;}).join('')
-    +`<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13.5px;color:var(--muted);padding:4px 2px 0"><span>รวมที่รับมาแล้ว</span><span>${baht(done.reduce((s,l)=>s+(Number(l.recv_amount)||0),0))}</span></div>`:'';
-  let sumOrd=0,sumRecv=0,sumRemain=0;
-  (o.lines||[]).forEach(l=>{const ec=Number(l.est_cost)||0;
-    sumOrd+=Number(l.qty_ordered)*ec;
-    sumRecv+=Number(l.recv_amount)||0;
-    sumRemain+=Math.max(0,Number(l.qty_ordered)-Number(l.qty_received))*ec;});
-  const rows=pend.map(l=>{const remain=Math.max(0,Number(l.qty_ordered)-Number(l.qty_received));
-    const pk=packOf(l.product_id);
-    if(pk){const u=pk.qty;
-      const qo=Number(l.qty_ordered),qr=Number(l.qty_received);
-      return `<div class="pline" data-line="${l.line_id}" data-pack="${u}"><div class="nm">${esc(pName(l.product_id))}<small style="color:var(--muted);display:block"><b style="color:var(--danger)">ค้าง ${rnd(remain/u)} ${esc(pk.name)}</b> (${remain} หน่วย) จากสั่ง ${rnd(qo/u)} · ตกลง ${baht(Number(l.est_cost)*u)}/${esc(pk.name)}<span class="lu" style="display:block"></span></small></div>
-      <input class="qin rGood" type="number" inputmode="decimal" value="${rnd(remain/u)}" title="รับจริง (${esc(pk.name)})" style="width:54px" oninput="recvCalc()">
-      <input class="qin rFree" type="number" inputmode="numeric" value="0" title="ของแถม (หน่วยย่อย เช่น ขวด/กระป๋อง)" style="width:46px" oninput="recvCalc()">
-      <input class="qin rDmg" type="number" inputmode="numeric" value="0" title="ชำรุด (หน่วย)" style="width:46px" oninput="recvCalc()">
-      <input class="qin rCost" type="number" inputmode="decimal" value="${rnd(Number(l.est_cost)*u)}" title="ราคา/${esc(pk.name)}" style="width:66px" oninput="recvCalc()"></div>`;}
-    return `<div class="pline" data-line="${l.line_id}"><div class="nm">${esc(pName(l.product_id))}<small style="color:var(--muted);display:block"><b style="color:var(--danger)">ค้าง ${remain}</b> หน่วย จากสั่ง ${l.qty_ordered} · ตกลง ${baht(l.est_cost)}/หน่วย · <a href="#" style="color:var(--green-2)" onclick="setPack(${l.product_id});return false">📦 ตั้งหน่วยใหญ่</a></small></div>
-      <input class="qin rGood" type="number" inputmode="numeric" value="${remain}" title="รับจริง" style="width:54px" oninput="recvCalc()">
-      <input class="qin rFree" type="number" inputmode="numeric" value="0" title="ของแถม" style="width:46px" oninput="recvCalc()">
-      <input class="qin rDmg" type="number" inputmode="numeric" value="0" title="ชำรุด" style="width:46px" oninput="recvCalc()">
-      <input class="qin rCost" type="number" inputmode="decimal" value="${l.est_cost}" title="ราคา/หน่วยจริง" style="width:66px" oninput="recvCalc()"></div>`;}).join('');
-  document.body.insertAdjacentHTML('beforeend',`<div class="ov" id="rcOv" data-oid="${o.id}" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(20,25,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:30"><div class="lcard" style="max-width:520px;border-radius:20px 20px 0 0;max-height:88vh;overflow:auto">
-    <h3 style="margin:0 0 4px">📦 ตรวจรับ ${esc(o.po_number)} <button class="mini" style="float:right" onclick="printOrder(${o.id})">🖨️</button></h3>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 8px">${esc(o.supplier||'ไม่ระบุซัพ')} · นับของจริงแล้วใส่ตัวเลข — <b>เฉพาะของดีเท่านั้นที่เข้าสต๊อก</b></p>
-    ${done.length?`<div class="sec-h" style="margin:2px 0 4px">⏳ ยังไม่รับ (${pend.length})</div>`:''}
-    ${pend.length?`<div class="pline" style="font-size:11.5px;color:var(--muted);padding-bottom:2px"><div class="nm">สินค้า</div><span style="width:54px;text-align:center">รับจริง</span><span style="width:46px;text-align:center">🎁แถม<br><span style="font-size:9.5px">(ชิ้น)</span></span><span style="width:46px;text-align:center">ชำรุด</span><span style="width:66px;text-align:center">ราคา</span></div>`:''}
-    ${rows||'<div class="empty">ไม่มีรายการค้างรับ</div>'}
-    ${doneRows}
-    <div class="f" style="margin-top:10px"><label>📸 รูปบิล/ใบส่งของ</label><input type="file" id="rcPhoto" accept="image/*" capture="environment"></div>
-    <button class="mini" style="width:100%;margin-bottom:8px" id="aiBillBtn" onclick="aiReadBill(${o.id})">🤖 ให้ AI อ่านบิล — เติมตัวเลขให้อัตโนมัติ</button>
-    <div id="aiBillBox"></div>
-    <input class="in" id="rcNote" placeholder="หมายเหตุ (เช่น ลังบุบ 2 ลัง)" style="margin-bottom:10px">
-    <div style="font-size:13px;border-top:1.5px dashed var(--line);padding-top:8px;margin-top:6px">
-      <div style="display:flex;justify-content:space-between;color:var(--muted)"><span>💵 ยอดใบสั่งซื้อ (ราคาตกลง)</span><span>${baht(sumOrd)}</span></div>
-      <div style="display:flex;justify-content:space-between;color:var(--muted)"><span>✅ รับแล้วก่อนหน้า (จ่ายจริง)</span><span>${baht(sumRecv)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-weight:700;color:${sumRemain>0.005?'var(--danger)':'var(--ok)'}"><span>⏳ ค้างรับ (ราคาตกลง)</span><span>${baht(sumRemain)}</span></div>
-    </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;margin:8px 0 4px"><input type="checkbox" id="rcVat" checked onchange="recvCalc()" style="width:19px;height:19px"> ราคาที่กรอก <b>รวม VAT แล้ว</b> (ไม่ติ๊ก = ระบบบวก 7% ให้)</label>
-    <div id="rcVatBrk" style="font-size:13px;color:var(--muted)"></div>
-    <div id="rcTotal" style="display:flex;justify-content:space-between;font-weight:800;font-size:17px;margin:2px 0 10px;padding-top:8px;border-top:1.5px dashed var(--line)"><span>💰 ยอดรวมตรวจรับครั้งนี้</span><span id="rcTotalV">฿0</span></div>
-    <button class="btn" id="rcBtn" onclick="submitRecv(${o.id})">✅ ยืนยันตรวจรับ — ของดีเข้าสต๊อก</button>
-    <button class="btn" style="background:#faece9;color:var(--danger);height:44px;margin-top:6px" onclick="cancelOrder(${o.id},'${esc(o.po_number)}','${o.status}')">${o.status==='partial'?'✋ ปิดใบ — ไม่รอของที่เหลือ':'🗑 ยกเลิกใบสั่งซื้อนี้'}</button>
-    <button class="btn" style="background:none;color:var(--muted);height:42px" onclick="document.getElementById('rcOv').remove()">ปิด</button>
-  </div></div>`);
-  recvCalc();
-}
-function recvCalc(){
-  const ov=document.getElementById('rcOv');if(!ov)return;let sum=0;
-  ov.querySelectorAll('.pline[data-line]').forEach(el=>{
-    const pk=Number(el.dataset.pack)||1;
-    const g=(Number(el.querySelector('.rGood').value)||0)*pk;
-    const fEl=el.querySelector('.rFree');
-    const f=(fEl?(Number(fEl.value)||0):0);
-    const c=(Number(el.querySelector('.rCost').value)||0)/pk;
-    sum+=g*c;
-    const lu=el.querySelector('.lu');
-    if(lu&&pk>1)lu.textContent='รับ '+rnd(g)+(f>0?' + แถม '+rnd(f):'')+' หน่วย · ทุน'+(f>0?'เฉลี่ย ':' ')+rnd((g+f)>0?(g*c)/(g+f):c)+' บ./หน่วย';
-  });
-  const vat=(document.getElementById('rcVat')?document.getElementById('rcVat').checked:true);
-  const brk=document.getElementById('rcVatBrk');
-  if(brk)brk.innerHTML=vat?'':'ยอดที่กรอก '+baht(sum)+' + VAT 7% '+baht(sum*0.07);
-  const t=document.getElementById('rcTotalV');if(t)t.textContent=baht(vat?sum:sum*1.07);
-}
-async function submitRecv(id){
-  const ov=document.getElementById('rcOv');if(!ov)return;
-  const lines=[...ov.querySelectorAll('.pline[data-line]')].map(el=>{const pk=Number(el.dataset.pack)||1;
-    const fEl=el.querySelector('.rFree');return {
-    line_id:Number(el.dataset.line),
-    qty_good:rnd((Number(el.querySelector('.rGood').value)||0)*pk),
-    qty_free:rnd((fEl?Number(fEl.value):0)||0),
-    qty_damaged:Number(el.querySelector('.rDmg').value)||0,
-    cost:(Number(el.querySelector('.rCost').value)||0)/pk
-  };}).filter(l=>l.qty_good>0||l.qty_damaged>0||l.qty_free>0);
-  if(!lines.length){toast('ใส่จำนวนรับจริงอย่างน้อย 1 รายการ');return;}
-  const rcVatEl=document.getElementById('rcVat');
-  if(rcVatEl&&!rcVatEl.checked)lines.forEach(l=>{l.cost=Math.round(l.cost*1.07*10000)/10000;});
-  const btn=$('rcBtn');btn.disabled=true;btn.textContent='กำลังบันทึก…';
-  let photo='';
-  const f=($('rcPhoto')&&$('rcPhoto').files)?$('rcPhoto').files[0]:null;
-  if(f){const path='po/'+id+'_'+Date.now()+'.jpg';
-    const {error:ue}=await sb.storage.from('req-photos').upload(path,f,{contentType:f.type||'image/jpeg'});
-    if(!ue)photo=sb.storage.from('req-photos').getPublicUrl(path).data.publicUrl;}
-  const {data,error}=await sb.rpc('core_wh_receive',{p_emp:me.id,p_order:id,p_bill_photo:photo,p_note:(($('rcNote')||{}).value||'').trim(),p_lines:lines});
-  if(error){toast(error.message||'ไม่สำเร็จ');btn.disabled=false;btn.textContent='✅ ยืนยันตรวจรับ — ของดีเข้าสต๊อก';return;}
-  ov.remove();
-  toast(data&&data.status==='received'?'ตรวจรับครบทั้งใบ ✓ ของเข้าสต๊อกแล้ว':'บันทึกแล้ว — ใบนี้ยังค้างรับบางส่วน');
-  loadRecvData();reloadProds();
-}
-async function cancelOrder(id,po,st){
-  const q=st==='partial'
-    ?'ปิดใบ '+po+' โดยไม่รอของที่เหลือ?\n(ของที่รับแล้วอยู่ในสต๊อกตามจริง ส่วนที่ขาดจะบันทึกไว้ในประวัติ)'
-    :'ยกเลิกใบสั่งซื้อ '+po+' ?';
-  if(!confirm(q))return;
-  const {data,error}=await sb.rpc('core_wh_po_order_cancel',{p_emp:me.id,p_order:id});
-  if(error){alert('ยกเลิกไม่สำเร็จ:\n'+(error.message||JSON.stringify(error)));return;}
-  const ov=document.getElementById('rcOv');if(ov)ov.remove();
-  toast(data==='closed'?'ปิดใบแล้ว — ส่วนที่ขาดบันทึกในประวัติ':'ยกเลิกใบสั่งซื้อแล้ว');
-  loadRecvData();
-}
-/* --- AI อ่านบิล (read-invoice / Haiku) --- */
-function fileToJpegB64(f,maxDim){return new Promise((res,rej)=>{
-  const img=new Image();const u=URL.createObjectURL(f);
-  img.onload=()=>{let w=img.width,h=img.height;const s=Math.min(1,maxDim/Math.max(w,h));
-    w=Math.round(w*s);h=Math.round(h*s);
-    const c=document.createElement('canvas');c.width=w;c.height=h;
-    c.getContext('2d').drawImage(img,0,0,w,h);
-    URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',0.82).split(',')[1]);};
-  img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('อ่านรูปไม่ได้'));};
-  img.src=u;});}
-async function aiReadBill(id){
-  const o=recvOrders.find(x=>x.id===id);if(!o)return;
-  const f=($('rcPhoto')&&$('rcPhoto').files)?$('rcPhoto').files[0]:null;
-  if(!f){toast('ถ่าย/เลือกรูปบิลก่อน แล้วค่อยกดให้ AI อ่าน');return;}
-  const btn=$('aiBillBtn');btn.disabled=true;btn.textContent='🤖 AI กำลังอ่านบิล…';
-  try{
-    const b64=await fileToJpegB64(f,1500);
-    const rs=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/read-invoice',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({image_b64:b64,media_type:'image/jpeg',order:{po_number:o.po_number,supplier:o.supplier,
-        lines:(o.lines||[]).map(l=>{const pk=packOf(l.product_id);return {line_id:l.line_id,name:pName(l.product_id),qty_ordered:Number(l.qty_ordered),est_cost:Number(l.est_cost),pack_qty:pk?pk.qty:1,pack_name:pk?pk.name:''};})}})});
-    const j=await rs.json().catch(()=>({}));
-    if(!rs.ok||j.error)throw new Error(j.error||('HTTP '+rs.status));
-    const warns=[],extras=[];let filled=0;
-    (j.items||[]).forEach(it=>{
-      if(it.line_id){
-        const el=document.querySelector('.pline[data-line="'+it.line_id+'"]');
-        const l=(o.lines||[]).find(x=>x.line_id===Number(it.line_id));
-        if(el){
-          const pk=Number(el.dataset.pack)||1;
-          if(Number(it.qty)>0){el.querySelector('.rGood').value=rnd(Number(it.qty)/pk);filled++;}
-          const up=Number(it.unit_price)||((Number(it.total)&&Number(it.qty))?Number(it.total)/Number(it.qty):0);
-          if(up>0)el.querySelector('.rCost').value=rnd(up*pk);
-          if(l){
-            const remain=Number(l.qty_ordered)-Number(l.qty_received);
-            if(Number(it.qty)&&Number(it.qty)!==remain)warns.push(esc(pName(l.product_id))+': บิล '+it.qty+' ≠ ค้างสั่ง '+remain);
-            if(up&&Number(l.est_cost)>0&&up>Number(l.est_cost)*1.02)warns.push(esc(pName(l.product_id))+': ราคาบิล '+up.toFixed(2)+' แพงกว่าที่ตกลง '+l.est_cost);
-          }
-        }
-      }else if(it.name_on_bill){extras.push(esc(String(it.name_on_bill))+(Number(it.qty)?' ×'+it.qty:''));}
-    });
-    $('aiBillBox').innerHTML=`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:10px;font-size:12.5px">
-      <b>🤖 อ่านบิลแล้ว</b> ${j.bill_no?'เลขที่ '+esc(String(j.bill_no))+' · ':''}เติมให้ ${filled} รายการ${Number(j.grand_total)?' · ยอดบิล '+baht(Number(j.grand_total)):''}
-      ${warns.length?'<div style="color:var(--danger);margin-top:5px">⚠️ '+warns.join('<br>⚠️ ')+'</div>':''}
-      ${extras.length?'<div style="color:#8a6d1f;margin-top:5px">อยู่ในบิลแต่ไม่อยู่ในใบสั่ง: '+extras.join(', ')+'</div>':''}
-      <div style="color:var(--muted);margin-top:5px">⚠️ อย่าลืม<b>นับของจริง</b>แล้วแก้ตัวเลขให้ตรงกับของที่มาจริง ก่อนกดยืนยัน</div></div>`;
-    recvCalc();
-  }catch(e){toast('AI อ่านไม่สำเร็จ: '+(e.message||e));}
-  btn.disabled=false;btn.textContent='🤖 ให้ AI อ่านบิล — เติมตัวเลขให้อัตโนมัติ';
-}
-async function fixCost(itemId,name,cur){
-  const v=prompt('ราคาทุนที่ถูกต้องของ "'+name+'" (ต่อหน่วย)\nปัจจุบัน: '+cur,cur);
-  if(v===null)return;const nc=Number(v);
-  if(!(nc>=0)){alert('ราคาไม่ถูกต้อง');return;}
-  const reason=prompt('เหตุผลที่แก้ราคา (บังคับ)');
-  if(reason===null)return;
-  if(!reason.trim()){alert('ต้องระบุเหตุผล');return;}
-  const {data,error}=await sb.rpc('core_wh_fix_cost',{p_emp:me.id,p_item:String(itemId),p_new_cost:nc,p_reason:reason.trim()});
-  if(error){alert('แก้ไม่สำเร็จ:\n'+(error.message||''));return;}
-  toast('แก้ทุน '+(data?data.old_cost+' → '+data.new_cost:'')+' ✓');
-  const ov=document.getElementById('poOv');if(ov)ov.remove();
-  loadPoHistory();
-}
-async function undoRecv(logId){
-  const reason=prompt('เหตุผลที่ถอนการตรวจรับนี้ (บังคับ)\n⚠️ ระบบจะดึงของรอบนี้ออกจากสต๊อก และคืนใบไปรอตรวจรับใหม่ — ทำได้เฉพาะวันเดียวกัน');
-  if(reason===null)return;
-  if(!reason.trim()){alert('ต้องระบุเหตุผล');return;}
-  const {error}=await sb.rpc('core_wh_receive_undo',{p_emp:me.id,p_log:logId,p_reason:reason.trim()});
-  if(error){alert('ถอนไม่สำเร็จ:\n'+(error.message||''));return;}
-  toast('ถอนการตรวจรับแล้ว ✓ ใบกลับไปรอตรวจรับ');
-  const ov=document.getElementById('rdOv');if(ov)ov.remove();
-  loadRecvData();reloadProds();
-}
-async function fixLineCost(lineId,unitCost,pkQty,pkName){
-  const cur=rnd(unitCost*pkQty);
-  const v=prompt('ราคาที่ถูกต้อง ต่อ '+pkName+'\nปัจจุบัน: '+cur,cur);
-  if(v===null)return;const np=Number(v);
-  if(!(np>=0)){alert('ราคาไม่ถูกต้อง');return;}
-  const reason=prompt('เหตุผลที่แก้ราคา (บังคับ)');
-  if(reason===null)return;if(!reason.trim()){alert('ต้องระบุเหตุผล');return;}
-  const {data,error}=await sb.rpc('core_wh_fix_line_cost',{p_emp:me.id,p_line:lineId,p_new_cost:np/pkQty,p_reason:reason.trim()});
-  if(error){alert('แก้ไม่สำเร็จ:\n'+(error.message||''));return;}
-  toast('แก้ราคาแล้ว ✓'+(data&&data.bills_fixed?' — อัปเดตบิลซื้อ '+data.bills_fixed+' ใบ':''));
-  const ov=document.getElementById('rdOv');if(ov)ov.remove();
-  loadRecvData();loadPoHistory();
-}
-function openRecvDetail(id){
-  const o=histOrders.find(x=>x.id===id)||recvOrders.find(x=>x.id===id);if(!o)return;
-  const dt=new Date(o.created_at);
-  const anyRecv=(o.lines||[]).some(l=>Number(l.qty_received)>0);
-  let ordTot=0,dTotO=0,dTotR=0,dRemain=0;
-  (o.lines||[]).forEach(l=>{const ec=Number(l.est_cost)||0;
-    dTotO+=Number(l.qty_ordered)*ec;
-    dTotR+=Number(l.recv_amount)||0;
-    dRemain+=Math.max(0,Number(l.qty_ordered)-Number(l.qty_received))*ec;});
-  const rows=(o.lines||[]).map(l=>{const short=Number(l.qty_received)<Number(l.qty_ordered)&&o.status!=='cancelled';
-    const pk=packOf(l.product_id);
-    const qo=Number(l.qty_ordered),qr=Number(l.qty_received),ec=Number(l.est_cost)||0;
-    const ra=Number(l.recv_amount)||0;
-    const ac=qr>0?(ra/qr):ec;
-    const lt=anyRecv?ra:(qo*ec);ordTot+=lt;
-    const qf=Number(l.qty_free)||0;
-    const qs=(pk?`สั่ง ${rnd(qo/pk.qty)} ${esc(pk.name)} · รับ ${rnd(qr/pk.qty)} ${esc(pk.name)} (${qr} หน่วย)`:`สั่ง ${qo} · รับ ${qr}`)
-      +(qf>0?` · 🎁แถม ${pk?rnd(qf/pk.qty)+' '+esc(pk.name):qf}`:'');
-    const pu=qr>0?ac:ec;
-    const ps=(qr>0?'จ่ายจริง ':'ตกลง ')+(pk?baht(pu*pk.qty)+'/'+esc(pk.name):baht(pu)+'/หน่วย · <a href="#" style="color:var(--green-2)" onclick="setPack('+l.product_id+');return false">📦 ตั้งหน่วยใหญ่</a>');
-    return `<div class="row"><div class="nm">${esc(pName(l.product_id))}<small>${qs}${Number(l.qty_damaged)>0?' · ชำรุด '+l.qty_damaged:''} · ${ps}</small></div>
-      <b>${baht(lt)}</b>${short?`<span class="short" style="margin-left:8px">ขาด ${Number(l.qty_ordered)-Number(l.qty_received)}</span>`:o.status==='cancelled'?'':'<span style="color:var(--ok);margin-left:8px">✓</span>'}${toolCan.cost_edit?`<button class="mini" style="margin-left:6px" onclick="fixLineCost(${l.line_id},${Number(l.est_cost)||0},${pk?pk.qty:1},'${pk?esc(pk.name):'หน่วย'}')">🔧</button>`:''}</div>`;}).join('')
-    + `<div style="font-size:13.5px;margin:8px 0;padding-top:8px;border-top:1.5px dashed var(--line)">
-        <div style="display:flex;justify-content:space-between;color:var(--muted)"><span>💵 ยอดใบสั่งซื้อ</span><span>${baht(dTotO)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:800;font-size:16.5px"><span>✅ ยอดรับของแล้ว (จ่ายจริง)</span><span>${baht(dTotR)}</span></div>
-        ${(o.status!=='cancelled'&&dRemain>0.005)?`<div style="display:flex;justify-content:space-between;font-weight:700;color:var(--danger)"><span>⏳ ค้างรับ / ขาด (ราคาตกลง)</span><span>${baht(dRemain)}</span></div>`:''}
-      </div>`;
-  const logs=(o.receives||[]).map(g=>{const gd=new Date(g.created_at);
-    const gi=(g.lines||[]).map(x=>{const pk=packOf(x.product_id);
-      const q=Number(x.qty_good)||0,c=Number(x.cost)||0;
-      const qt=pk?rnd(q/pk.qty)+' '+esc(pk.name):q+' หน่วย';
-      const pt=pk?baht(c*pk.qty)+'/'+esc(pk.name):baht(c)+'/หน่วย';
-      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:1px 0"><span>· ${esc(pName(x.product_id))} <b>${qt}</b> × ${pt}${Number(x.qty_free)>0?' <span style="color:#8a6d1f">🎁+'+x.qty_free+'</span>':''}${Number(x.qty_damaged)>0?' <span style="color:var(--danger)">ชำรุด '+x.qty_damaged+'</span>':''}</span><b>${baht(q*c)}</b></div>`;}).join('');
-    const gt=(g.lines||[]).reduce((s,x)=>s+(Number(x.qty_good)||0)*(Number(x.cost)||0),0);
-    return `<div style="font-size:12px;color:var(--muted);margin-top:8px;background:#f7f6f0;border:1px solid var(--line);border-radius:10px;padding:8px 10px"><b>📦 ตรวจรับโดย ${esc(g.by||'')}</b> · ${gd.toLocaleString('th-TH')}${g.undone?' · <b style="color:var(--danger)">[ถอนแล้ว: '+esc(g.undo_reason||'')+']</b>':''}${(!g.undone&&toolCan.undo)?` <button class="mini" style="color:var(--danger)" onclick="undoRecv(${g.id})">↩️ ถอน</button>`:''}${g.note?' · '+esc(g.note):''}
-      <div style="margin-top:4px;${g.undone?'text-decoration:line-through;opacity:.6':''}">${gi}</div>
-      <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:3px;${g.undone?'text-decoration:line-through;opacity:.6':''}"><span>รวมรอบนี้</span><span>${baht(gt)}</span></div>${g.bill_photo?`<br><img src="${esc(g.bill_photo)}" style="max-width:130px;border-radius:8px;margin-top:5px;cursor:pointer" onclick="window.open('${esc(g.bill_photo)}')">`:''}</div>`;}).join('');
-  document.body.insertAdjacentHTML('beforeend',`<div class="ov" id="rdOv" data-oid="${o.id}" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(20,25,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:30"><div class="lcard" style="max-width:520px;border-radius:20px 20px 0 0;max-height:85vh;overflow:auto">
-    <h3 style="margin:0 0 4px">${esc(o.po_number)} · ${esc(o.supplier||'ไม่ระบุซัพ')}</h3>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">${dt.toLocaleString('th-TH')} · สั่งโดย ${esc(o.created_by_name||'')} · สถานะ ${o.status==='received'?'✓ รับครบ':o.status==='partial'?'รับบางส่วน':o.status==='cancelled'?'ยกเลิก':'รอรับ'}</p>
-    ${rows}${logs}
-    ${(o.status==='received'&&ordDiff(o).short>0)?(o.short_reviewed
-      ?`<div style="background:#eef5f0;border:1px solid var(--line);border-radius:11px;padding:9px 12px;margin-top:10px;font-size:13px">✅ เจ้าของตรวจยืนยันยอดขาดแล้ว — ${esc(o.short_review_by||'')}${o.short_review_at?' · '+new Date(o.short_review_at).toLocaleString('th-TH'):''}${o.short_review_note?'<br>📝 '+esc(o.short_review_note):''}</div>`
-      :(toolCan.short_review
-        ?`<button class="btn" style="background:#8a6d1f;margin-top:10px" onclick="shortReview(${o.id})">✅ เจ้าของยืนยันรับทราบยอดขาด</button>`
-        :`<div style="background:#f6efd9;border:1px solid #e6d29a;border-radius:11px;padding:9px 12px;margin-top:10px;font-size:13px">⏳ ใบนี้มีของขาด — รอเจ้าของตรวจยืนยัน</div>`))
-      :''}
-    ${(toolCan.cancel&&((o.status==='received'&&ordDiff(o).short>0)||o.status==='cancelled'))?`<button class="btn" style="background:#3a6ea5;margin-top:10px" onclick="reopenOrder(${o.id},'${esc(o.po_number)}','${o.status}')">↪️ เปิดใบกลับมารับต่อ</button>`:''}
-    ${(me.isOwner&&o.status==='received')?`<button class="btn" style="background:#faece9;color:var(--danger);margin-top:8px" onclick="cancelReceivedOrder(${o.id},'${esc(o.po_number)}')">🗑 ยกเลิกทั้งใบ — ถอนของออกสต๊อก (เจ้าของ)</button>`:''}
-    <button class="btn" style="margin-top:10px" onclick="printOrder(${o.id})">🖨️ พิมพ์ใบสั่งซื้อ</button>
-    <button class="btn" style="background:none;color:var(--muted);height:42px" onclick="document.getElementById('rdOv').remove()">ปิด</button></div></div>`);
-}
-async function shortReview(id){
-  const note=prompt('หมายเหตุการรับทราบยอดขาด (ไม่บังคับ)\nเช่น "ซัพลดเงินให้แล้ว" / "ยกยอดไปส่งบิลหน้า"','');
-  if(note===null)return;
-  const {error}=await sb.rpc('core_wh_short_review',{p_emp:me.id,p_order:id,p_note:note});
-  if(error){alert('ยืนยันไม่สำเร็จ:\n'+(error.message||''));return;}
-  toast('บันทึกการรับทราบยอดขาดแล้ว ✓');
-  const ov=document.getElementById('rdOv');if(ov)ov.remove();
-  loadRecvData();
-}
-async function reopenOrder(id,po,st){
-  const q=st==='cancelled'
-    ?'เปิดใบ '+po+' ที่ยกเลิกไว้ กลับมาใช้ต่อ?'
-    :'เปิดใบ '+po+' กลับมารับของต่อ?\n(รายการที่ขาดจะกลับไปรอรับที่หน้า 📦 ตรวจรับ)';
-  if(!confirm(q))return;
-  const {data,error}=await sb.rpc('core_wh_po_reopen',{p_emp:me.id,p_order:id});
-  if(error){alert('เปิดใบไม่สำเร็จ:\n'+(error.message||''));return;}
-  const ov=document.getElementById('rdOv');if(ov)ov.remove();
-  toast('เปิดใบ '+po+' กลับแล้ว ✓ ไปที่ "รอตรวจรับ" ได้เลย');
-  loadRecvData();
-}
-async function cancelReceivedOrder(id,po){
-  const reason=prompt('เหตุผลที่ยกเลิกใบ '+po+'\n(ระบบจะถอนของออกจากสต๊อกทั้งหมดที่รับเข้ามา)');
-  if(reason===null)return;
-  if(!reason.trim()){alert('กรุณาระบุเหตุผล');return;}
-  if(!confirm('ยืนยันยกเลิกใบ '+po+'?\nของที่รับเข้าสต๊อกแล้วทั้งหมดจะถูกถอนออก — ย้อนกลับได้ด้วยปุ่ม "เปิดใบกลับมารับต่อ"'))return;
-  const {data,error}=await sb.rpc('core_wh_po_order_cancel',{p_emp:me.id,p_order:id,p_reason:reason.trim()});
-  if(error){alert('ยกเลิกไม่สำเร็จ:\n'+(error.message||JSON.stringify(error)));return;}
-  const ov=document.getElementById('rdOv');if(ov)ov.remove();
-  toast('ยกเลิกใบ '+po+' แล้ว — ถอนของออกสต๊อกเรียบร้อย');
-  loadRecvData();reloadProds();
-}
-function printOrder(id){
-  const o=histOrders.find(x=>x.id===id)||recvOrders.find(x=>x.id===id);if(!o)return;
-  const dt=new Date(o.created_at);
-  const anyRecv=(o.lines||[]).some(l=>Number(l.qty_received)>0);
-  let ptot=0;
-  const rows=(o.lines||[]).map((l,i)=>{const ec=Number(l.est_cost)||0;
-    const lt=anyRecv?(Number(l.recv_amount)||0):(Number(l.qty_ordered)*ec);ptot+=lt;
-    return `<tr><td class="c">${i+1}</td><td>${esc(pName(l.product_id))}</td><td class="r">${l.qty_ordered}</td><td class="r">${l.qty_received}</td><td class="r">${l.qty_damaged||0}</td><td class="r">${baht(ec)}</td><td class="r">${baht(lt)}</td></tr>`;}).join('');
-  printDoc('ใบสั่งซื้อ',`<h2>Royal Creek — ใบสั่งซื้อ ${esc(o.po_number)}</h2>
-    <div class="sub">ซัพพลายเออร์: ${esc(o.supplier||'-')} · ${dt.toLocaleString('th-TH')} · สั่งโดย ${esc(o.created_by_name||'')}${o.note?' · '+esc(o.note):''}</div>
-    <table><thead><tr><th class="c">#</th><th>สินค้า</th><th class="r">สั่ง</th><th class="r">รับจริง</th><th class="r">ชำรุด</th><th class="r">ราคาตกลง/หน่วย</th><th class="r">รวม</th></tr></thead><tbody>${rows}
-    <tr><td colspan="6" class="r"><b>รวม${anyRecv?' (ตามรับจริง)':''}</b></td><td class="r"><b>${baht(ptot)}</b></td></tr></tbody></table>`);
 }
 function filterPicker(){
   const q=(($('bSearch')||{}).value||'').trim().toLowerCase();
@@ -744,7 +262,7 @@ async function newProd(){
   const {data:id,error}=await sb.rpc('core_wh_product_new',{p_emp:me.id,p_name:name.trim(),p_emoji:'',p_price:price});
   if(error){toast(error.message||'เพิ่มไม่สำเร็จ');return;}
   await reloadProds();
-  toast('เพิ่มสินค้าใหม่แล้ว');if(buyMode==='order'){addOrdLine(id);filterOrdPicker();}else{addLineByPid(id);filterPicker();}
+  toast('เพิ่มสินค้าใหม่แล้ว');addLineByPid(id);filterPicker();
 }
 async function savePO(){
   if(!poItems.length)return;
@@ -766,24 +284,13 @@ async function savePO(){
 }
 
 /* ===== คำขอเบิก ===== */
-let reqDate=new Date().toLocaleDateString('sv-SE');
-function reqShift(n){const d=new Date(reqDate);d.setDate(d.getDate()+n);reqDate=d.toLocaleDateString('sv-SE');renderReq();}
-function reqSetDate(v){if(v){reqDate=v;renderReq();}}
 async function renderReq(){
-  const today=new Date().toLocaleDateString('sv-SE');
-  $('vReq').innerHTML=`<div class="card" style="padding:10px"><div style="display:flex;gap:7px;align-items:center">
-    <button class="mini" onclick="reqShift(-1)">◀</button>
-    <input class="in" type="date" value="${reqDate}" onchange="reqSetDate(this.value)" style="flex:1;height:42px;margin:0">
-    <button class="mini" onclick="reqShift(1)" ${reqDate>=today?'disabled style="opacity:.4"':''}>▶</button>
-    ${reqDate!==today?`<button class="mini" onclick="reqSetDate('${today}')">วันนี้</button>`:''}
-  </div><div style="font-size:11.5px;color:var(--muted);margin-top:6px">ใบรออนุมัติแสดงทุกวันเสมอ · ใบอื่นแสดงตามวันที่เลือก</div></div>
-  <div id="reqList"><div class="empty">กำลังโหลด…</div></div>`;
-  const {data,error}=await sb.rpc('core_req_list_day',{p_status:null,p_date:reqDate});
-  const el=document.getElementById('reqList');if(!el)return;
-  if(error){el.innerHTML='<div class="empty">'+esc(error.message||'โหลดไม่สำเร็จ')+'</div>';return;}
+  $('vReq').innerHTML='<div class="empty">กำลังโหลด…</div>';
+  const {data}=await sb.rpc('core_req_list',{p_status:null});
   const list=data||[];
-  if(!list.length){el.innerHTML='<div class="empty">ไม่มีคำขอเบิกของวันที่ '+new Date(reqDate+'T00:00:00').toLocaleDateString('th-TH')+'</div>';return;}
-  el.innerHTML=list.map(r=>{
+  const head=`<button class="btn" style="margin-bottom:10px" onclick="openPull()">📥 ขอเบิกของคืนจากสาขา</button><div id="pullBox"></div>`;
+  if(!list.length){$('vReq').innerHTML=head+'<div class="empty">ยังไม่มีคำขอเบิก</div>';return;}
+  $('vReq').innerHTML=head+list.map(r=>{
     const dt=new Date(r.created_at);const pending=r.status==='pending';
     const items=r.items.map(it=>{const pending=r.status==='pending';const short=pending&&it.wh_qty<it.granted;
       const stockLbl=it.frozen?(it.has_snap?('คลังตอนจ่าย '+it.wh_qty):'(ใบก่อนระบบบันทึกยอด)'):('คลังมี '+it.wh_qty);
@@ -792,15 +299,46 @@ async function renderReq(){
     const recv=r.status==='confirmed'?(
       r.receive_status==='ok'?`<div style="font-size:12px;color:var(--ok);margin-top:6px">✓ ร้านยืนยันรับของถูกต้อง (${esc(r.receiver||'')})</div>`
       :r.receive_status==='issue'?`<div style="font-size:12px;color:var(--danger);margin-top:6px">⚠️ ร้านแจ้งปัญหา: ${esc(r.receive_note||'')} (${esc(r.receiver||'')})${r.receive_photo?`<br><img src="${esc(r.receive_photo)}" style="max-width:130px;border-radius:8px;margin-top:5px">`:''}</div>`
-      :`<div style="font-size:12px;color:var(--muted);margin-top:6px">รอร้านตรวจรับของ…</div>`):'';
-    return `<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>${esc(r.venue)} (${r.venue_code})</b>
+      :(r.venue_code==='WH'?'':`<div style="font-size:12px;color:var(--muted);margin-top:6px">รอร้านตรวจรับของ…</div>`)):'';
+    return `<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>${r.src_venue?('ขอเบิกจาก '+esc(r.src_venue)+' → '):''}${esc(r.venue)} (${r.venue_code})</b>
       <span class="pill ${pending?'pending':''}">${pending?'รออนุมัติ':r.status==='confirmed'?'อนุมัติแล้ว':r.status==='cancelled'?'ยกเลิก':'ปฏิเสธ'}</span>
-      <span style="margin-left:auto;font-size:12px;color:var(--muted);text-align:right">ขอ: ${esc(r.requester||'-')}${r.approver?'<br>จ่าย: '+esc(r.approver)+(r.decided_at?' · '+new Date(r.decided_at).toLocaleDateString('th-TH')+' '+new Date(r.decided_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}):''):''}<br>${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></div>
+      <span style="margin-left:auto;font-size:12px;color:var(--muted)">${esc(r.requester||'')} · ${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></div>
       ${items}${recv}
       ${r.status==='cancelled'?`<div style="font-size:12px;color:var(--danger);margin-top:6px">🗑 ยกเลิกแล้ว — ${esc(r.cancel_reason||'')}</div>`:''}
-      ${pending?`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" style="height:44px" onclick="confirmReq('${r.id}')">ยืนยันจ่ายของ</button><button class="mini" style="color:var(--danger)" onclick="rejectReq('${r.id}')">ปฏิเสธ</button></div>`:''}
+      ${pending&&r.src_venue?`<div style="font-size:13px;color:var(--muted);margin-top:8px">⏳ รอพนักงานสาขา ${esc(r.src_venue)} กด “จ่ายของ” ในแอป POS ของสาขา</div>`:''}
+      ${pending&&!r.src_venue?`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" style="height:44px" onclick="confirmReq('${r.id}')">ยืนยันจ่ายของ</button><button class="mini" style="color:var(--danger)" onclick="rejectReq('${r.id}')">ปฏิเสธ</button></div>`:''}
       ${me.isOwner&&(r.status==='pending'||r.status==='confirmed')?`<button class="mini" style="color:var(--danger);margin-top:8px" onclick="cancelReq('${r.id}')">🗑 ยกเลิกใบเบิกนี้ (เจ้าของ)</button>`:''}</div>`;
   }).join('');
+}
+/* ===== คลังขอเบิกของคืนจากสาขา ===== */
+let pullStock=[],pullQty={};
+function openPull(){
+  const opts=venuesList.filter(v=>v.code!=='WH').map(v=>`<option value="${v.code}">${esc(v.name_th)} (${v.code})</option>`).join('');
+  $('pullBox').innerHTML=`<div class="card"><div class="sec-h">ขอเบิกของคืนจากสาขา</div>
+    <label class="fld">ขอจากสาขา</label><select class="in" id="pullSrc" onchange="loadPull()">${opts}</select>
+    <div id="pullList"></div></div>`;
+  loadPull();
+}
+async function loadPull(){
+  pullQty={};const src=$('pullSrc').value;
+  $('pullList').innerHTML='<div class="empty">กำลังโหลด…</div>';
+  const {data,error}=await sb.rpc('core_pos_products_for_venue',{p_venue:src});
+  if(error){$('pullList').innerHTML='<div class="empty">โหลดไม่สำเร็จ</div>';return;}
+  pullStock=(data||[]).filter(s=>s.track_stock&&Number(s.qty)>0).sort((a,b)=>(a.name_th||'').localeCompare(b.name_th||'','th'));
+  if(!pullStock.length){$('pullList').innerHTML='<div class="empty">สาขานี้ไม่มีของเหลือ</div>';return;}
+  $('pullList').innerHTML=`<div style="text-align:right;margin:6px 0"><button class="mini" onclick="pullAll()">ขอทั้งหมด</button></div>`+
+    pullStock.map(s=>`<div class="row"><div class="nm">${esc(s.name_th)}<small>สาขามี ${s.qty}</small></div>
+      <input class="qin" type="number" inputmode="numeric" min="0" max="${s.qty}" id="pq_${s.product_id}" placeholder="0" oninput="pullQty[${s.product_id}]=Number(this.value)||0"></div>`).join('')+
+    `<button class="btn" style="margin-top:10px" onclick="submitPull()">ส่งคำขอเบิก</button>`;
+}
+function pullAll(){pullStock.forEach(s=>{pullQty[s.product_id]=Number(s.qty);const e=$('pq_'+s.product_id);if(e)e.value=s.qty;});}
+async function submitPull(){
+  const src=$('pullSrc').value;
+  const items=Object.entries(pullQty).filter(([k,v])=>v>0).map(([k,v])=>({product_id:Number(k),qty:v}));
+  if(!items.length){toast('ยังไม่ได้ใส่จำนวน');return;}
+  const {error}=await sb.rpc('core_req_create',{p_emp:me.id,p_venue:'WH',p_note:'คลังขอเบิกคืนจาก '+src,p_items:items,p_src:src});
+  if(error){toast(error.message||'ส่งไม่สำเร็จ');return;}
+  toast('ส่งคำขอแล้ว รอสาขาจ่ายของ ✓');renderReq();
 }
 async function cancelReq(id){
   const reason=prompt('เหตุผลที่ยกเลิกใบเบิกนี้?\n(ใบที่จ่ายแล้ว: ระบบจะถอนของออกจากร้านคืนเข้าคลัง)');
@@ -972,44 +510,11 @@ async function doWhSet(pid){
   if(error){toast(error.message||'ไม่สำเร็จ');return;}
   document.getElementById('adjOv').remove();toast('ตั้งค่าแล้ว ✓');await reloadProds();renderStk();
 }
-async function editPrice(pid,code,label,cur){
-  const hint=code?'\n(ใส่ 0 = ล้างราคาเฉพาะสาขา กลับไปใช้ราคากลาง)':'';
-  const v=prompt('ราคาขายใหม่ — '+label+'\nปัจจุบัน: '+cur+hint,cur);
-  if(v===null)return;const np=Number(v);
-  if(!(np>=0)){alert('ราคาไม่ถูกต้อง');return;}
-  const {data,error}=await sb.rpc('core_wh_set_price',{p_emp:me.id,p_product:pid,p_venue:code||'',p_price:np});
-  if(error){alert('แก้ราคาไม่สำเร็จ:\n'+(error.message||''));return;}
-  toast('แก้ราคาแล้ว ✓ '+(data&&data.new===null?'(กลับใช้ราคากลาง)':baht(np)));
-  await reloadProds();
-  if(traceCtx)trace(traceCtx.pid,traceCtx.name);
-}
-let traceCtx=null;
 async function trace(pid,name){
-  traceCtx={pid,name};
-  const [{data},pv]=await Promise.all([
-    sb.rpc('core_wh_product_trace',{p_emp:me.id,p_product:pid}),
-    sb.rpc('core_wh_product_venues',{p_emp:me.id,p_product:pid})
-  ]);
+  const {data}=await sb.rpc('core_wh_product_trace',{p_emp:me.id,p_product:pid});
   const list=data||[];
-  const info=(pv&&pv.data)||{};
-  const pk=packOf(pid);
-  const lc=Number(lastCosts[String(pid)])||0;
-  const vens2=(info.venues||[]).filter(x=>x.code!=='WH');
-  const vRows=vens2.map(x=>{const pr=Number(x.price)||0;
-    const margin=(lc>0&&pr>0)?(pr-lc):null;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 0;font-size:13px"><span>${esc(x.name||x.code)}${x.is_override?' <span style="font-size:10.5px;color:#8a6d1f">(ราคาเฉพาะสาขา)</span>':''}${Number(x.student)>0?' · นร. '+baht(x.student):''}</span><span><b>${baht(pr)}</b>${margin!==null?` <span style="color:${margin>0?'var(--ok)':'var(--danger)'};font-size:11.5px">กำไร ${baht(margin)} (${pr>0?Math.round(margin/pr*100):0}%)</span>`:''}${toolCan.price_edit?` <button class="mini" style="padding:3px 8px" onclick="editPrice(${pid},'${x.code}','${esc(x.name||x.code)}',${pr})">✏️</button>`:''}</span></div>`;}).join('');
-  const infoCard=`<div class="card" style="margin-top:10px">
-    <div style="font-size:15px;font-weight:700">${esc(name)}</div>
-    <div style="font-size:13px;color:var(--muted);margin-top:4px">
-      📦 หน่วย: ${pk?('1 '+esc(pk.name)+' = '+pk.qty+' หน่วย'):'หน่วยย่อยอย่างเดียว'} <a href="#" style="color:var(--green-2)" onclick="setPack(${pid});return false">แก้ขนาด</a><br>
-      💵 ทุนล่าสุด: ${lc>0?baht(lc)+'/หน่วย'+(pk?' ('+baht(lc*pk.qty)+'/'+esc(pk.name)+')':''):'ยังไม่มีข้อมูลซื้อ'}
-      ${Number(info.base_price)>0?' · ราคาขายกลาง '+baht(info.base_price):''}${toolCan.price_edit?` <button class="mini" style="padding:3px 8px" onclick="editPrice(${pid},'','ราคากลาง (ทุกสาขาที่ไม่ตั้งเฉพาะ)',${Number(info.base_price)||0})">✏️</button>`:''}
-    </div>
-    ${vRows?`<div class="sec-h" style="margin:10px 0 3px;font-size:13px">🏪 ราคาขาย/สต๊อกต่อสาขา — กำไรคิดจากทุนล่าสุด</div>${vRows}`:'<div style="font-size:12.5px;color:var(--muted);margin-top:6px">ยังไม่ถูกวางขายที่สาขาไหน</div>'}
-  </div>`;
   if(!list.length){$('vStk').innerHTML=`<button class="mini" onclick="renderStk()">← สต็อกคลัง</button>
-    ${infoCard}
-    <div class="empty">ยังไม่มีการเคลื่อนไหว</div>`;return;}
+    <div class="sec-h" style="margin-top:12px">เส้นทางสินค้า: ${esc(name)}</div><div class="empty">ยังไม่มีการเคลื่อนไหว</div>`;return;}
   /* ตารางวัน × ร้าน */
   const vens=[...new Set(list.map(m=>m.venue))];
   vens.sort((a,b)=>(a==='คลังกลาง'?-1:b==='คลังกลาง'?1:String(a).localeCompare(String(b),'th')));
@@ -1029,8 +534,7 @@ async function trace(pid,name){
   const detail=list.map(m=>{const dt=new Date(m.at);const pos=Number(m.delta)>=0;
     return `<div class="row"><div class="nm"><b>${kt[m.kind]||m.kind} · ${esc(m.venue)}</b><small>${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})} · ${esc(m.by||'')}${m.reason?' · '+esc(m.reason):''}</small></div><b style="color:${pos?'var(--ok)':'var(--danger)'}">${pos?'+':''}${m.delta} → ${m.after}</b></div>`;}).join('');
   $('vStk').innerHTML=`<button class="mini" onclick="renderStk()">← สต็อกคลัง</button>
-    ${infoCard}
-    <div class="sec-h" style="margin-top:12px">🧭 เส้นทางสินค้า</div>
+    <div class="sec-h" style="margin-top:12px">เส้นทางสินค้า: ${esc(name)}</div>
     <div style="overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:6px">
       <table style="border-collapse:collapse;width:100%;font-size:13px;min-width:${120+vens.length*86}px">
         <thead>${head}</thead><tbody>${curRow}${dayRows}</tbody></table></div>
