@@ -241,20 +241,43 @@ function filterPicker(){
     :'<div style="color:var(--muted);font-size:13px;padding:6px">ไม่พบสินค้า</div>';
 }
 function renderLines(){
-  const lines=poItems.map((it,i)=>{const p=prods.find(x=>x.id===it.pid);const unit=it.qty>0?(Number(it.total)||0)/it.qty:0;
-    return `<div class="pline"><div class="nm">${esc(p?p.emoji||'':'')} ${esc(p?p.name_th:'')}<small style="color:var(--muted);display:block">= ${baht(unit)}/หน่วย</small></div>
-      <input class="qin" type="number" inputmode="numeric" value="${it.qty}" onchange="editLine(${i},'qty',this.value)" title="จำนวนรวม">
-      <input class="qin" type="number" inputmode="decimal" value="${it.total}" onchange="editLine(${i},'total',this.value)" title="ราคารวม" style="width:86px">
-      <button class="del" onclick="rmLine(${i})">×</button></div>`;}).join('');
+  const lines=poItems.map((it,i)=>{
+    const p=prods.find(x=>x.id===it.pid);
+    const pk=packOf(it.pid);
+    const pkQty=pk?pk.qty:1;
+    const pkName=pk?pk.name:'หน่วย';
+    const unit=it.qty>0?(Number(it.total)||0)/it.qty:0;
+    const packCost=unit*pkQty;
+    return `<div class="pline" style="flex-wrap:wrap;gap:4px">
+      <div class="nm" style="width:100%">${esc(p?p.emoji||'':'')} ${esc(p?p.name_th:'')}
+        <small style="color:var(--muted)"> = ${baht(unit)}/หน่วย${pk?` · ${baht(packCost)}/${pkName}`:''}</small></div>
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+        ${pk?`<input class="qin" type="number" inputmode="numeric" value="${it.packs||''}" placeholder="${pkName}" title="จำนวน${pkName}" style="width:60px" oninput="editPack(${i},this.value,${pkQty})">
+        <span style="font-size:12px;color:var(--muted)">×${pkQty}=</span>`:''}
+        <input class="qin" type="number" inputmode="numeric" value="${it.qty}" onchange="editLine(${i},'qty',this.value)" title="จำนวนหน่วย" style="width:60px">
+        <span style="font-size:12px;color:var(--muted)">×</span>
+        <input class="qin" type="number" inputmode="decimal" value="${unit||''}" placeholder="ราคา/หน่วย" title="ราคาต่อหน่วย" style="width:74px" oninput="editUnitCost(${i},this.value)">
+        <span style="font-size:12px;color:var(--muted)">=</span>
+        <input class="qin" type="number" inputmode="decimal" value="${it.total||''}" placeholder="รวม" title="ราคารวม" style="width:80px" oninput="editLine(${i},'total',parseFloat(this.value)||0)">
+        <button class="del" onclick="rmLine(${i})">×</button>
+      </div></div>`;}).join('');
   const total=poItems.reduce((s,x)=>s+(Number(x.total)||0),0);
-  $('buyLines').innerHTML=poItems.length?`<div class="sec-h">รายการรับเข้า — ใส่จำนวนรวม + ราคารวม (รวม VAT ได้เลย)</div>
-    <div class="pline" style="font-size:12px;color:var(--muted);padding-bottom:2px"><div class="nm">สินค้า</div><span style="width:64px;text-align:center">จำนวนรวม</span><span style="width:86px;text-align:center">ราคารวม</span><span style="width:22px"></span></div>
+  $('buyLines').innerHTML=poItems.length?`<div class="sec-h">รายการรับเข้า — ใส่จำนวน + ราคา/หน่วย หรือราคารวม</div>
     ${lines}
     <div style="display:flex;justify-content:space-between;font-weight:700;font-size:17px;margin:10px 0"><span>รวมต้นทุนทั้งใบ</span><span>${baht(total)}</span></div>
     <button class="btn" onclick="savePO()">บันทึก & รับเข้าคลัง</button>`:'<div style="color:var(--muted);font-size:13px;margin-top:8px">แตะสินค้าด้านบนเพื่อเพิ่มเข้ารายการ</div>';
 }
-function addLineByPid(pid){if(!poItems.find(x=>x.pid===pid))poItems.push({pid,qty:1,total:0});renderLines();}
+function addLineByPid(pid){
+  if(!poItems.find(x=>x.pid===pid)){
+    const pk=packOf(pid);
+    const lc=Number(lastCosts[String(pid)])||0;
+    poItems.push({pid,qty:pk?pk.qty:1,total:lc*(pk?pk.qty:1),packs:pk?1:null});
+  }
+  renderLines();
+}
 function editLine(i,k,v){poItems[i][k]=Number(v)||0;renderLines();}
+function editUnitCost(i,v){const u=parseFloat(v)||0;poItems[i].total=u*poItems[i].qty;renderLines();}
+function editPack(i,v,pkQty){const n=parseInt(v)||0;poItems[i].packs=n;poItems[i].qty=n*pkQty;renderLines();}
 function rmLine(i){poItems.splice(i,1);renderLines();}
 async function newProd(){
   const name=prompt('ชื่อสินค้าใหม่');if(!name||!name.trim())return;
