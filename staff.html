@@ -281,7 +281,7 @@ async function openEmp(id){
 /* ===== ติ๊กสิทธิ์รายข้อ (ระบบใหม่) ===== */
 const NPERMS=[
  {g:'🛒 POS ร้านค้า — เลือกร้านได้',items:[
-   {k:'pos.sell',l:'คีย์ขายหน้าร้าน',d:'ขายสินค้า + เพิ่ม/แก้สินค้าและราคาในร้าน',v:1},
+   {k:'pos.sell',l:'คีย์ขายหน้าร้าน',d:'ขายสินค้า + เพิ่ม/แก้สินค้าและราคา · ติ๊กแล้วได้ เบิกของ/ตัดชำรุด/ดูยอด ของซุ้มนั้นให้อัตโนมัติ',v:1},
    {k:'pos.req',l:'เบิกของ',d:'ยื่นใบเบิกจากคลัง/สาขาอื่น · ตรวจรับของ · จ่ายเบิกข้ามสาขาแทนร้านตัวเอง',v:1},
    {k:'pos.damage',l:'ขอตัดชำรุด',d:'ยื่นขอตัดของเสีย (รอคนมีสิทธิ์อนุมัติ)',v:1},
    {k:'pos.report',l:'ดูยอด/รายงานร้าน',d:'ยอดขาย บิลย้อนหลัง ประวัติสต็อก',v:1},
@@ -344,8 +344,12 @@ async function toggleNPerm(empId,perm,venue,el){
   if(error){toast(error.message||'ไม่สำเร็จ');return;}
   if(has){empPerms=empPerms.filter(x=>!(x.perm===perm&&(x.venue??null)===(venue||null)));}
   else{empPerms.push({perm:perm,venue:venue||null});}
+  if(!has&&perm==='pos.sell'){ // เซิร์ฟเวอร์เติมเบิก/ตัดชำรุด/ดูยอดให้ด้วย → โหลดสิทธิ์จริงมาแสดง
+    const {data:pd}=await sb.rpc('core_perm_get',{p_actor:me.actorId,p_emp:empId});
+    if(pd)empPerms=pd;
+  }
   document.getElementById('npermBox').innerHTML=buildNPerms(empId);
-  toast(has?'ถอนสิทธิ์แล้ว':'ให้สิทธิ์แล้ว ✓');
+  toast(has?'ถอนสิทธิ์แล้ว':(perm==='pos.sell'?'ให้สิทธิ์ขาย + เบิก/ตัดชำรุด/ดูยอด ✓':'ให้สิทธิ์แล้ว ✓'));
 }
 
 /* ===== ติ๊กสิทธิ์ (ระบบเดิม — เหลือส่วนที่ยังใช้ระดับ) ===== */
