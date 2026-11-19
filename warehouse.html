@@ -278,15 +278,6 @@ async function savePO(){
       warns.push(`• ${p.name_th}: ทุน ${it.cost.toFixed(2)} ต่างจากครั้งก่อน (${last}) ${it.cost>last?'+':''}${Math.round((it.cost-last)/last*100)}%`);
   });
   if(warns.length&&!confirm('⚠️ ตรวจพบทุนน่าสงสัย:\n\n'+warns.join('\n')+'\n\nถ้าคีย์ถูกต้อง (ราคาเปลี่ยนจริง) กดตกลงเพื่อบันทึก\nถ้าคีย์ผิด กดยกเลิกแล้วแก้ตัวเลข'))return;
-  /* กันคีย์ซ้ำ: เลข PO เดียวกัน หรือ สินค้า+จำนวน+ทุนเท่ากันในรอบ 45 วัน */
-  try{
-    const poNo=(($('pPo')||{}).value||'').trim();
-    const {data:dups}=await sb.rpc('core_wh_dup_check',{p_emp:me.id,p_po:poNo,p_items:items});
-    if(dups&&dups.length){
-      const msg=dups.slice(0,6).map(d=>`• ${d.product} ×${d.qty} — ใบ ${d.po||'(ไม่มีเลข)'} (${new Date(d.at).toLocaleDateString('th-TH')}) · ${d.why}`).join('\n');
-      if(!confirm('⚠️ อาจคีย์ซ้ำ! พบรายการที่เคยบันทึกแล้ว:\n\n'+msg+'\n\nถ้าเป็นของที่ซื้อใหม่จริงกด “ตกลง” เพื่อบันทึก\nถ้าเป็นใบเดิม กด “ยกเลิก” (ของจะไม่เข้าคลังซ้ำ)'))return;
-    }
-  }catch(e){}
   const {error}=await sb.rpc('core_wh_purchase',{p_emp:me.id,p_supplier:($('pSup')||{}).value?$('pSup').value.trim():'',p_po:($('pPo')||{}).value?$('pPo').value.trim():'',p_note:null,p_items:items});
   if(error){toast(error.message||'ไม่สำเร็จ');return;}
   toast('รับของเข้าคลังแล้ว');poItems=[];renderBuy();loadLastCosts();
@@ -297,9 +288,8 @@ async function renderReq(){
   $('vReq').innerHTML='<div class="empty">กำลังโหลด…</div>';
   const {data}=await sb.rpc('core_req_list',{p_status:null});
   const list=data||[];
-  const head=`<button class="btn" style="margin-bottom:10px" onclick="openPull()">📥 ขอเบิกของคืนจากสาขา</button><div id="pullBox"></div>`;
-  if(!list.length){$('vReq').innerHTML=head+'<div class="empty">ยังไม่มีคำขอเบิก</div>';return;}
-  $('vReq').innerHTML=head+list.map(r=>{
+  if(!list.length){$('vReq').innerHTML='<div class="empty">ยังไม่มีคำขอเบิก</div>';return;}
+  $('vReq').innerHTML=list.map(r=>{
     const dt=new Date(r.created_at);const pending=r.status==='pending';
     const items=r.items.map(it=>{const pending=r.status==='pending';const short=pending&&it.wh_qty<it.granted;
       const stockLbl=it.frozen?(it.has_snap?('คลังตอนจ่าย '+it.wh_qty):'(ใบก่อนระบบบันทึกยอด)'):('คลังมี '+it.wh_qty);
@@ -308,46 +298,15 @@ async function renderReq(){
     const recv=r.status==='confirmed'?(
       r.receive_status==='ok'?`<div style="font-size:12px;color:var(--ok);margin-top:6px">✓ ร้านยืนยันรับของถูกต้อง (${esc(r.receiver||'')})</div>`
       :r.receive_status==='issue'?`<div style="font-size:12px;color:var(--danger);margin-top:6px">⚠️ ร้านแจ้งปัญหา: ${esc(r.receive_note||'')} (${esc(r.receiver||'')})${r.receive_photo?`<br><img src="${esc(r.receive_photo)}" style="max-width:130px;border-radius:8px;margin-top:5px">`:''}</div>`
-      :(r.venue_code==='WH'?'':`<div style="font-size:12px;color:var(--muted);margin-top:6px">รอร้านตรวจรับของ…</div>`)):'';
-    return `<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>${r.src_venue?('ขอเบิกจาก '+esc(r.src_venue)+' → '):''}${esc(r.venue)} (${r.venue_code})</b>
+      :`<div style="font-size:12px;color:var(--muted);margin-top:6px">รอร้านตรวจรับของ…</div>`):'';
+    return `<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>${esc(r.venue)} (${r.venue_code})</b>
       <span class="pill ${pending?'pending':''}">${pending?'รออนุมัติ':r.status==='confirmed'?'อนุมัติแล้ว':r.status==='cancelled'?'ยกเลิก':'ปฏิเสธ'}</span>
       <span style="margin-left:auto;font-size:12px;color:var(--muted)">${esc(r.requester||'')} · ${dt.toLocaleDateString('th-TH')} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></div>
       ${items}${recv}
       ${r.status==='cancelled'?`<div style="font-size:12px;color:var(--danger);margin-top:6px">🗑 ยกเลิกแล้ว — ${esc(r.cancel_reason||'')}</div>`:''}
-      ${pending&&r.src_venue?`<div style="font-size:13px;color:var(--muted);margin-top:8px">⏳ รอพนักงานสาขา ${esc(r.src_venue)} กด “จ่ายของ” ในแอป POS ของสาขา</div>`:''}
-      ${pending&&!r.src_venue?`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" style="height:44px" onclick="confirmReq('${r.id}')">ยืนยันจ่ายของ</button><button class="mini" style="color:var(--danger)" onclick="rejectReq('${r.id}')">ปฏิเสธ</button></div>`:''}
+      ${pending?`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" style="height:44px" onclick="confirmReq('${r.id}')">ยืนยันจ่ายของ</button><button class="mini" style="color:var(--danger)" onclick="rejectReq('${r.id}')">ปฏิเสธ</button></div>`:''}
       ${me.isOwner&&(r.status==='pending'||r.status==='confirmed')?`<button class="mini" style="color:var(--danger);margin-top:8px" onclick="cancelReq('${r.id}')">🗑 ยกเลิกใบเบิกนี้ (เจ้าของ)</button>`:''}</div>`;
   }).join('');
-}
-/* ===== คลังขอเบิกของคืนจากสาขา ===== */
-let pullStock=[],pullQty={};
-function openPull(){
-  const opts=venuesList.filter(v=>v.code!=='WH').map(v=>`<option value="${v.code}">${esc(v.name_th)} (${v.code})</option>`).join('');
-  $('pullBox').innerHTML=`<div class="card"><div class="sec-h">ขอเบิกของคืนจากสาขา</div>
-    <label class="fld">ขอจากสาขา</label><select class="in" id="pullSrc" onchange="loadPull()">${opts}</select>
-    <div id="pullList"></div></div>`;
-  loadPull();
-}
-async function loadPull(){
-  pullQty={};const src=$('pullSrc').value;
-  $('pullList').innerHTML='<div class="empty">กำลังโหลด…</div>';
-  const {data,error}=await sb.rpc('core_pos_products_for_venue',{p_venue:src});
-  if(error){$('pullList').innerHTML='<div class="empty">โหลดไม่สำเร็จ</div>';return;}
-  pullStock=(data||[]).filter(s=>s.track_stock&&Number(s.qty)>0).sort((a,b)=>(a.name_th||'').localeCompare(b.name_th||'','th'));
-  if(!pullStock.length){$('pullList').innerHTML='<div class="empty">สาขานี้ไม่มีของเหลือ</div>';return;}
-  $('pullList').innerHTML=`<div style="text-align:right;margin:6px 0"><button class="mini" onclick="pullAll()">ขอทั้งหมด</button></div>`+
-    pullStock.map(s=>`<div class="row"><div class="nm">${esc(s.name_th)}<small>สาขามี ${s.qty}</small></div>
-      <input class="qin" type="number" inputmode="numeric" min="0" max="${s.qty}" id="pq_${s.product_id}" placeholder="0" oninput="pullQty[${s.product_id}]=Number(this.value)||0"></div>`).join('')+
-    `<button class="btn" style="margin-top:10px" onclick="submitPull()">ส่งคำขอเบิก</button>`;
-}
-function pullAll(){pullStock.forEach(s=>{pullQty[s.product_id]=Number(s.qty);const e=$('pq_'+s.product_id);if(e)e.value=s.qty;});}
-async function submitPull(){
-  const src=$('pullSrc').value;
-  const items=Object.entries(pullQty).filter(([k,v])=>v>0).map(([k,v])=>({product_id:Number(k),qty:v}));
-  if(!items.length){toast('ยังไม่ได้ใส่จำนวน');return;}
-  const {error}=await sb.rpc('core_req_create',{p_emp:me.id,p_venue:'WH',p_note:'คลังขอเบิกคืนจาก '+src,p_items:items,p_src:src});
-  if(error){toast(error.message||'ส่งไม่สำเร็จ');return;}
-  toast('ส่งคำขอแล้ว รอสาขาจ่ายของ ✓');renderReq();
 }
 async function cancelReq(id){
   const reason=prompt('เหตุผลที่ยกเลิกใบเบิกนี้?\n(ใบที่จ่ายแล้ว: ระบบจะถอนของออกจากร้านคืนเข้าคลัง)');
