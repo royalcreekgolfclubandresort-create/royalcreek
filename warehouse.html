@@ -279,7 +279,7 @@ async function savePO(){
   });
   if(warns.length&&!confirm('⚠️ ตรวจพบทุนน่าสงสัย:\n\n'+warns.join('\n')+'\n\nถ้าคีย์ถูกต้อง (ราคาเปลี่ยนจริง) กดตกลงเพื่อบันทึก\nถ้าคีย์ผิด กดยกเลิกแล้วแก้ตัวเลข'))return;
   const {error}=await sb.rpc('core_wh_purchase',{p_emp:me.id,p_supplier:($('pSup')||{}).value?$('pSup').value.trim():'',p_po:($('pPo')||{}).value?$('pPo').value.trim():'',p_note:null,p_items:items});
-  if(error){toast(error.message||'ไม่สำเร็จ');return;}
+  if(error){alert('บันทึกใบสั่งซื้อไม่สำเร็จ:\n'+(error.message||JSON.stringify(error)));return;}
   toast('รับของเข้าคลังแล้ว');poItems=[];renderBuy();loadLastCosts();
 }
 
